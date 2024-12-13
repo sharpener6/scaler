@@ -11,11 +11,12 @@ class TaskStatus(enum.Enum):
     Success = _common.TaskStatus.success  # if submit and task is done and get result
     Failed = _common.TaskStatus.failed  # if submit and task is failed on worker
     Canceled = _common.TaskStatus.canceled  # if submit and task is canceled
-    NotFound = _common.TaskStatus.notFound  # if submit and task is not found in scheduler
     WorkerDied = (
         _common.TaskStatus.workerDied
     )  # if submit and worker died (only happened when scheduler keep_task=False)
     NoWorker = _common.TaskStatus.noWorker  # if submit and scheduler is full (not implemented yet)
+
+    NotFound = _common.TaskStatus.notFound  # if task is not found in scheduler, it will send such status to client
 
     # below are only used for monitoring channel, not sent to client
     Inactive = _common.TaskStatus.inactive  # task is scheduled but not allocate to worker

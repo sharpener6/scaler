@@ -2,11 +2,11 @@ import graphlib
 import time
 import unittest
 
-from scaler import Client, SchedulerClusterCombo
+from scaler import Client
 from scaler.utility.graph.optimization import cull_graph
 from scaler.utility.logging.scoped_logger import ScopedLogger
 from scaler.utility.logging.utility import setup_logger
-from tests.utility import get_available_tcp_port, logging_test_name
+from tests.utility import logging_test_name
 
 
 def inc(i):
@@ -25,11 +25,11 @@ class TestGraph(unittest.TestCase):
     def setUp(self) -> None:
         setup_logger()
         logging_test_name(self)
-        self.address = f"tcp://127.0.0.1:{get_available_tcp_port()}"
-        self.cluster = SchedulerClusterCombo(address=self.address, n_workers=3, event_loop="builtin")
+        self.address = f"tcp://127.0.0.1:2345"
+        # self.cluster = SchedulerClusterCombo(address=self.address, n_workers=3, event_loop="builtin")
 
     def tearDown(self) -> None:
-        self.cluster.shutdown()
+        # self.cluster.shutdown()
         pass
 
     def test_graph(self):
@@ -146,6 +146,21 @@ class TestGraph(unittest.TestCase):
             time.sleep(4)
 
         self.assertTrue(all(f.cancelled() for f in futures.values()))
+
+    def test_block_false(self):
+        def throw_error(*args):
+            time.sleep(1)
+            raise ValueError("throw error")
+
+        def func(*args):
+            time.sleep(2)
+            return 0
+
+        graph = {"a": 1, "b": 2, "c": 3, "d": (throw_error, "a"), "e": (func, "b"), "f": (func, "e")}
+
+        with Client(address=self.address) as client:
+            futures = client.get(graph, keys=["f", "e", "d"], block=False)
+            print(futures["e"].result())
 
     def test_cull_graph(self):
         graph = {

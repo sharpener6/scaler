@@ -51,6 +51,8 @@ class Client:
     def __init__(
         self,
         address: str,
+        event_loop: str = "buildin",
+        io_threads: int = 1,
         profiling: bool = False,
         timeout_seconds: int = DEFAULT_CLIENT_TIMEOUT_SECONDS,
         heartbeat_interval_seconds: int = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
@@ -68,11 +70,16 @@ class Client:
         :param heartbeat_interval_seconds: Frequency of heartbeat to scheduler in seconds
         :type heartbeat_interval_seconds: int
         """
-        self.__initialize__(address, profiling, timeout_seconds, heartbeat_interval_seconds, serializer)
+
+        self.__initialize__(
+            address, event_loop, io_threads, profiling, timeout_seconds, heartbeat_interval_seconds, serializer
+        )
 
     def __initialize__(
         self,
         address: str,
+        event_loop: str,
+        io_threads: int,
         profiling: bool,
         timeout_seconds: int,
         heartbeat_interval_seconds: int,
@@ -85,6 +92,8 @@ class Client:
 
         self._client_agent_address = ZMQConfig(ZMQType.inproc, host=f"scaler_client_{uuid.uuid4().hex}")
         self._scheduler_address = ZMQConfig.from_string(address)
+        self._event_loop = event_loop
+        self._io_threads = io_threads
         self._timeout_seconds = timeout_seconds
         self._heartbeat_interval_seconds = heartbeat_interval_seconds
 
@@ -159,6 +168,8 @@ class Client:
 
         return {
             "address": self._scheduler_address.to_address(),
+            "event_loop": self._event_loop,
+            "io_threads": self._io_threads,
             "profiling": self._profiling,
             "timeout_seconds": self._timeout_seconds,
             "heartbeat_interval_seconds": self._heartbeat_interval_seconds,
@@ -168,6 +179,8 @@ class Client:
         # TODO: fix copy the serializer
         self.__initialize__(
             address=state["address"],
+            event_loop=state["event_loop"],
+            io_threads=state["io_threads"],
             profiling=state["profiling"],
             timeout_seconds=state["timeout_seconds"],
             heartbeat_interval_seconds=state["heartbeat_interval_seconds"],
@@ -501,6 +514,7 @@ class Client:
                 compute_futures[key] = self._future_factory(
                     task=task_id_to_tasks[node_name_to_task_id[key]], is_delayed=not block, group_task_id=graph_task_id
                 )
+                print(f"future[{key}]: task_id={node_name_to_task_id[key].hex()}, future={compute_futures[key]}")
 
             elif key in node_name_to_arguments:
                 argument, data = node_name_to_arguments[key]

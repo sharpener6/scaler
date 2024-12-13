@@ -39,7 +39,9 @@ class ScalerFuture(Future):
             return self._profiling_info
 
     def set_result_ready(self, object_id: Optional[bytes], profile_result: Optional[ProfileResult] = None) -> None:
+        print("set_result_ready out")
         with self._condition:  # type: ignore[attr-defined]
+            print("set_result_ready in")
             if self.done():
                 raise InvalidStateError(f"invalid future state: {self._state}")
 
@@ -61,7 +63,7 @@ class ScalerFuture(Future):
         self,
         result: Optional[Any] = None,
         exception: Optional[BaseException] = None,
-        profiling_info: Optional[ProfileResult] = None
+        profiling_info: Optional[ProfileResult] = None,
     ) -> None:
         with self._condition:  # type: ignore[attr-defined]
             if self.cancelled():

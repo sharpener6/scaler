@@ -86,6 +86,7 @@ class ClientFutureManager(FutureManager):
                 if result.status == TaskStatus.Failed:
                     assert len(result.results) == 1
                     result_object_id = result.results[0]
+                    print(f"received failed result object {result_object_id.hex()} for future={future}")
                     future.set_result_ready(result_object_id, profile_result)
                     self._object_id_to_future[result_object_id] = result.status, future
                     return

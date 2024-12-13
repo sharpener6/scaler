@@ -70,6 +70,7 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
     async def on_task_result(self, task_result: TaskResult):
         worker = self._allocator.remove_task(task_result.task_id)
 
+        print(f"on task result {task_result.task_id.hex()=}, {task_result.status=}")
         if task_result.status in {TaskStatus.Canceled, TaskStatus.NotFound}:
             if worker is not None:
                 # The worker canceled the task, but the scheduler still had it queued. Re-route the task to another
