@@ -89,6 +89,10 @@ class TaskManagerStatus(Message):
         return self._msg.failed
 
     @property
+    def cancel_failed(self) -> int:
+        return self._msg.cancelFailed
+
+    @property
     def canceled(self) -> int:
         return self._msg.canceled
 
@@ -98,7 +102,7 @@ class TaskManagerStatus(Message):
 
     @staticmethod
     def new_msg(  # type: ignore[override]
-        unassigned: int, running: int, success: int, failed: int, canceled: int, not_found: int
+        unassigned: int, running: int, success: int, failed: int, cancel_failed: int, canceled: int, not_found: int
     ) -> "TaskManagerStatus":
         return TaskManagerStatus(
             _status.TaskManagerStatus(
@@ -106,6 +110,7 @@ class TaskManagerStatus(Message):
                 running=running,
                 success=success,
                 failed=failed,
+                cancelFailed=cancel_failed,
                 canceled=canceled,
                 notFound=not_found,
             )

@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from nicegui import ui
 
-from scaler.protocol.python.common import TaskStatus
+from scaler.protocol.python.common import TaskResultStatus
 from scaler.protocol.python.message import StateTask
 from scaler.ui.live_display import WorkersSection
 from scaler.ui.setting_page import Settings
@@ -23,14 +23,14 @@ class TaskColors:
     CANCELING = CANCELED
 
     __task_status_to_color = {
-        TaskStatus.Success: SUCCESS,
-        TaskStatus.Failed: FAILED,
-        TaskStatus.Canceled: CANCELED,
-        TaskStatus.Canceling: CANCELING,
+        TaskResultStatus.Success: SUCCESS,
+        TaskResultStatus.Failed: FAILED,
+        TaskResultStatus.Canceled: CANCELED,
+        TaskResultStatus.Canceling: CANCELING,
     }
 
     @staticmethod
-    def from_status(status: TaskStatus) -> str:
+    def from_status(status: TaskResultStatus) -> str:
         return TaskColors.__task_status_to_color[status]
 
 
@@ -219,7 +219,7 @@ class TaskStream:
         now = datetime.datetime.now()
         self._last_task_tick = now
 
-        if task_status in {TaskStatus.Success, TaskStatus.Failed, TaskStatus.Canceling}:
+        if task_status in {TaskResultStatus.Success, TaskResultStatus.Failed, TaskResultStatus.Canceling}:
             self.__handle_task_result(state, now)
             return
 
@@ -232,7 +232,7 @@ class TaskStream:
         if worker_string not in self._seen_workers:
             self.__handle_new_worker(worker_string, now)
 
-        if task_status in {TaskStatus.Running}:
+        if task_status in {TaskResultStatus.Running}:
             self.__handle_running_task(state, worker_string, now)
 
     def __add_lost_worker(self, worker: str, now: datetime.datetime):

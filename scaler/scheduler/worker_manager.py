@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from scaler.io.async_binder import AsyncBinder
 from scaler.io.async_connector import AsyncConnector
-from scaler.protocol.python.common import TaskStatus
+from scaler.protocol.python.common import TaskCancelConfirmStatus
 from scaler.protocol.python.message import (
     ClientDisconnect,
     DisconnectRequest,
@@ -16,6 +16,7 @@ from scaler.protocol.python.message import (
     TaskResult,
     WorkerHeartbeat,
     WorkerHeartbeatEcho,
+    TaskCancelConfirm,
 )
 from scaler.protocol.python.status import ProcessorStatus, Resource, WorkerManagerStatus, WorkerStatus
 from scaler.scheduler.allocators.queued import QueuedAllocator
@@ -52,7 +53,7 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
         self._binder_monitor = binder_monitor
         self._task_manager = task_manager
 
-    async def assign_task_to_worker(self, task: Task) -> bool:
+    async def on_assign_task(self, task: Task) -> bool:
         worker = await self._allocator.assign_task(task.task_id)
         if worker is None:
             return False
@@ -69,19 +70,8 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
 
         await self._binder.send(worker, TaskCancel.new_msg(task_cancel.task_id))
 
-    async def on_task_result(self, task_result: TaskResult):
+    async def on_task_finished(self, task_result: TaskResult):
         worker = self._allocator.remove_task(task_result.task_id)
-
-        if task_result.status in {TaskStatus.Canceled, TaskStatus.NotFound}:
-            if worker is not None:
-                # The worker canceled the task, but the scheduler still had it queued. Re-route the task to another
-                # worker.
-                await self.__reroute_tasks([task_result.task_id])
-            else:
-                await self._task_manager.on_task_done(task_result)
-
-            return
-
         if worker is None:
             logging.error(
                 f"received unknown task result for task_id={task_result.task_id.hex()}, status={task_result.status} "
@@ -89,7 +79,16 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
             )
             return
 
-        await self._task_manager.on_task_done(task_result)
+    async def on_task_canceled(self, task_cancel_confirm: TaskCancelConfirm):
+        if task_cancel_confirm.status == TaskCancelConfirmStatus.CancelFailed:
+            return
+
+        if task_cancel_confirm.status == TaskCancelConfirmStatus.NotFound:
+            self._allocator.remove_task(task_cancel_confirm.task_id)
+            return
+
+        assert task_cancel_confirm.status == TaskCancelConfirmStatus.Canceled
+        self._allocator.remove_task(task_cancel_confirm.task_id)
 
     async def on_heartbeat(self, worker: bytes, info: WorkerHeartbeat):
         if await self._allocator.add_worker(worker):
@@ -190,7 +189,7 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
         for worker, task_ids in current_advice.items():
             await self._binder_monitor.send(StateBalanceAdvice.new_msg(worker, task_ids))
 
-        task_cancel_flags = TaskCancel.TaskCancelFlags(force=True, retrieve_task_object=False)
+        task_cancel_flags = TaskCancel.TaskCancelFlags(force=True)
 
         self._last_balance_advice = current_advice
         for worker, task_ids in current_advice.items():
@@ -207,10 +206,6 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
         for dead_worker in dead_workers:
             await self.__disconnect_worker(dead_worker)
 
-    async def __reroute_tasks(self, task_ids: List[bytes]):
-        for task_id in task_ids:
-            await self._task_manager.on_task_reroute(task_id)
-
     async def __disconnect_worker(self, worker: bytes):
         """return True if disconnect worker success"""
         if worker not in self._worker_alive_since:
@@ -224,8 +219,9 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
         if not task_ids:
             return
 
-        logging.info(f"rerouting {len(task_ids)} tasks")
-        await self.__reroute_tasks(task_ids)
+        logging.info(f"rerouting {len(task_ids)} tasks due to worker {worker!r} disconnected")
+        for task_id in task_ids:
+            await self._task_manager.on_no_cancel_reroute(task_id)
 
     async def __shutdown_worker(self, worker: bytes):
         await self._binder.send(worker, ClientDisconnect.new_msg(ClientDisconnect.DisconnectType.Shutdown))

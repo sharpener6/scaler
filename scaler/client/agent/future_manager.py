@@ -7,7 +7,7 @@ from scaler.client.agent.mixins import FutureManager
 from scaler.client.future import ScalerFuture
 from scaler.client.serializer.mixins import Serializer
 from scaler.io.utility import concat_list_of_bytes
-from scaler.protocol.python.common import TaskStatus
+from scaler.protocol.python.common import TaskResultStatus
 from scaler.protocol.python.message import ObjectResponse, TaskCancel, TaskResult
 from scaler.utility.exceptions import DisconnectedError, NoWorkerError, TaskNotFoundError, WorkerDiedError
 from scaler.utility.metadata.profile_result import retrieve_profiling_result_from_task_result
@@ -20,7 +20,7 @@ class ClientFutureManager(FutureManager):
         self._serializer = serializer
 
         self._task_id_to_future: Dict[bytes, ScalerFuture] = dict()
-        self._object_id_to_future: Dict[bytes, Tuple[TaskStatus, ScalerFuture]] = dict()
+        self._object_id_to_future: Dict[bytes, Tuple[TaskResultStatus, ScalerFuture]] = dict()
 
     def add_future(self, future: Future):
         assert isinstance(future, ScalerFuture)
@@ -58,34 +58,34 @@ class ClientFutureManager(FutureManager):
             profile_result = retrieve_profiling_result_from_task_result(result)
 
             try:
-                if result.status == TaskStatus.NotFound:
+                if result.status == TaskResultStatus.NotFound:
                     future.set_exception(TaskNotFoundError(f"task not found: {task_id.hex()}"), profile_result)
                     return
 
-                if result.status == TaskStatus.WorkerDied:
+                if result.status == TaskResultStatus.WorkerDied:
                     future.set_exception(
                         WorkerDiedError(f"worker died when processing task: {task_id.hex()}"), profile_result
                     )
                     return
 
-                if result.status == TaskStatus.NoWorker:
+                if result.status == TaskResultStatus.NoWorker:
                     future.set_exception(
                         NoWorkerError(f"no available worker when processing task: {task_id.hex()}"), profile_result
                     )
                     return
 
-                if result.status == TaskStatus.Canceled:
+                if result.status == TaskResultStatus.Canceled:
                     future.set_exception(DisconnectedError("client disconnected"), profile_result)
                     return
 
-                if result.status == TaskStatus.Success:
+                if result.status == TaskResultStatus.Success:
                     assert len(result.results) == 1
                     result_object_id = result.results[0]
                     future.set_result_ready(result_object_id, profile_result)
                     self._object_id_to_future[result_object_id] = result.status, future
                     return
 
-                if result.status == TaskStatus.Failed:
+                if result.status == TaskResultStatus.Failed:
                     assert len(result.results) == 1
                     result_object_id = result.results[0]
                     future.set_result_ready(result_object_id, profile_result)
@@ -112,10 +112,10 @@ class ClientFutureManager(FutureManager):
             status, future = self._object_id_to_future.pop(object_id)
 
             try:
-                if status == TaskStatus.Success:
+                if status == TaskResultStatus.Success:
                     future.set_result(self._serializer.deserialize(concat_list_of_bytes(object_bytes)))
 
-                elif status == TaskStatus.Failed:
+                elif status == TaskResultStatus.Failed:
                     future.set_exception(deserialize_failure(concat_list_of_bytes(object_bytes)))
             except InvalidStateError:
                 continue  # future got canceled

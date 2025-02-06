@@ -12,7 +12,7 @@ import zmq.asyncio
 from scaler.io.async_binder import AsyncBinder
 from scaler.io.async_connector import AsyncConnector
 from scaler.io.utility import chunk_to_list_of_bytes
-from scaler.protocol.python.common import ObjectContent, TaskStatus
+from scaler.protocol.python.common import ObjectContent, TaskResultStatus
 from scaler.protocol.python.message import (
     ObjectInstruction,
     ObjectRequest,
@@ -187,7 +187,7 @@ class VanillaProcessorManager(Looper, ProcessorManager):
             )
 
             await self._task_manager.on_task_result(
-                TaskResult.new_msg(task_id, TaskStatus.Failed, profile_result.serialize(), [result_object_id])
+                TaskResult.new_msg(task_id, TaskResultStatus.Failed, profile_result.serialize(), [result_object_id])
             )
 
     async def on_suspend_task(self, task_id: bytes) -> bool:

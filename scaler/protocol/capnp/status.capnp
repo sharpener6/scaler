@@ -26,6 +26,7 @@ struct TaskManagerStatus {
     failed @3 :UInt32;
     canceled @4 :UInt32;
     notFound @5 :UInt32;
+    cancelFailed @6 :UInt32;
 }
 
 struct ProcessorStatus {

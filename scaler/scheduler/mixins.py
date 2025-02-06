@@ -14,6 +14,7 @@ from scaler.protocol.python.message import (
     TaskCancel,
     TaskResult,
     WorkerHeartbeat,
+    TaskCancelConfirm,
 )
 from scaler.utility.mixins import Reporter
 
@@ -98,7 +99,11 @@ class GraphTaskManager(Reporter):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_graph_sub_task_done(self, result: TaskResult) -> bool:
+    async def on_graph_sub_task_cancel_confirm(self, task_cancel_confirm: TaskCancelConfirm):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    async def on_graph_sub_task_result(self, result: TaskResult) -> bool:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -116,17 +121,21 @@ class TaskManager(Reporter):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_task_done(self, result: TaskResult):
+    async def on_task_cancel_confirm(self, task_cancel_confirm: TaskCancelConfirm):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_task_reroute(self, task_id: bytes):
+    async def on_task_result(self, result: TaskResult):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    async def on_no_cancel_reroute(self, task_id: bytes):
         raise NotImplementedError()
 
 
 class WorkerManager(Reporter):
     @abc.abstractmethod
-    async def assign_task_to_worker(self, task: Task) -> bool:
+    async def on_assign_task(self, task: Task) -> bool:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -134,7 +143,11 @@ class WorkerManager(Reporter):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_task_result(self, task_result: TaskResult):
+    async def on_task_canceled(self, task_cancel_confirm: TaskCancelConfirm):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    async def on_task_finished(self, task_result: TaskResult):
         raise NotImplementedError()
 
     @abc.abstractmethod

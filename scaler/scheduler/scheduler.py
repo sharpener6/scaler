@@ -19,6 +19,7 @@ from scaler.protocol.python.message import (
     TaskCancel,
     TaskResult,
     WorkerHeartbeat,
+    TaskCancelConfirm,
 )
 from scaler.protocol.python.mixins import Message
 from scaler.scheduler.client_manager import VanillaClientManager
@@ -128,14 +129,18 @@ class Scheduler:
             await self._worker_manager.on_heartbeat(source, message)
             return
 
-        # receive task result from downstream
-        if isinstance(message, TaskResult):
-            await self._worker_manager.on_task_result(message)
-            return
-
-        # scheduler receives worker disconnect request from downstream
+        # receives worker disconnect request from downstream
         if isinstance(message, DisconnectRequest):
             await self._worker_manager.on_disconnect(source, message)
+            return
+
+        # receive task cancel confirm from downstream
+        if isinstance(message, TaskCancelConfirm):
+            await self._task_manager.on_task_cancel_confirm(message)
+
+        # receive task result from downstream
+        if isinstance(message, TaskResult):
+            await self._task_manager.on_task_result(message)
             return
 
         # =====================================================================================

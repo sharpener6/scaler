@@ -6,7 +6,7 @@ from typing import List, Optional, Set, Tuple, Type
 import bidict
 
 from scaler.protocol.capnp._python import _message  # noqa
-from scaler.protocol.python.common import ObjectContent, TaskStatus
+from scaler.protocol.python.common import ObjectContent, TaskResultStatus, TaskCancelConfirmStatus, TaskStatus
 from scaler.protocol.python.mixins import Message
 from scaler.protocol.python.status import (
     BinderStatus,
@@ -86,7 +86,6 @@ class TaskCancel(Message):
     @dataclasses.dataclass
     class TaskCancelFlags:
         force: bool
-        retrieve_task_object: bool
 
     @property
     def task_id(self) -> bytes:
@@ -94,22 +93,15 @@ class TaskCancel(Message):
 
     @property
     def flags(self) -> TaskCancelFlags:
-        return TaskCancel.TaskCancelFlags(
-            force=self._msg.flags.force, retrieve_task_object=self._msg.flags.retrieveTaskObject
-        )
+        return TaskCancel.TaskCancelFlags(force=self._msg.flags.force)
 
     @staticmethod
     def new_msg(task_id: bytes, flags: Optional[TaskCancelFlags] = None) -> "TaskCancel":
         if flags is None:
-            flags = TaskCancel.TaskCancelFlags(force=False, retrieve_task_object=False)
+            flags = TaskCancel.TaskCancelFlags(force=False)
 
         return TaskCancel(
-            _message.TaskCancel(
-                taskId=task_id,
-                flags=_message.TaskCancel.TaskCancelFlags(
-                    force=flags.force, retrieveTaskObject=flags.retrieve_task_object
-                ),
-            )
+            _message.TaskCancel(taskId=task_id, flags=_message.TaskCancel.TaskCancelFlags(force=flags.force))
         )
 
 
@@ -122,8 +114,8 @@ class TaskResult(Message):
         return self._msg.taskId
 
     @property
-    def status(self) -> TaskStatus:
-        return TaskStatus(self._msg.status.raw)
+    def status(self) -> TaskResultStatus:
+        return TaskResultStatus(self._msg.status.raw)
 
     @property
     def metadata(self) -> bytes:
@@ -135,7 +127,10 @@ class TaskResult(Message):
 
     @staticmethod
     def new_msg(
-        task_id: bytes, status: TaskStatus, metadata: Optional[bytes] = None, results: Optional[List[bytes]] = None
+        task_id: bytes,
+        status: TaskResultStatus,
+        metadata: Optional[bytes] = None,
+        results: Optional[List[bytes]] = None,
     ) -> "TaskResult":
         if metadata is None:
             metadata = bytes()
@@ -144,6 +139,34 @@ class TaskResult(Message):
             results = list()
 
         return TaskResult(_message.TaskResult(taskId=task_id, status=status.value, metadata=metadata, results=results))
+
+
+class TaskCancelConfirm(Message):
+    def __init__(self, msg):
+        super().__init__(msg)
+
+    @property
+    def task_id(self) -> bytes:
+        return self._msg.taskId
+
+    @property
+    def status(self) -> TaskCancelConfirmStatus:
+        return TaskCancelConfirmStatus(self._msg.canceled)
+
+    @property
+    def task(self) -> Optional[Task]:
+        task_payload = getattr(self._msg, self._msg.which())
+        if task_payload is None:
+            return task_payload
+
+        return Task(task_payload)
+
+    @staticmethod
+    def new_msg(task_id: bytes, status: TaskCancelConfirmStatus, task: Optional[Task]) -> "TaskCancelConfirm":
+        if task is None:
+            return TaskCancelConfirm(_message.TaskCancelConfirm(task_id=task_id, status=status.value, noTask=None))
+
+        return TaskCancelConfirm(_message.TaskCancelConfirm(task_id=task_id, status=status.value, task=task))
 
 
 class GraphTask(Message):

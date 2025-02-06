@@ -5,18 +5,18 @@ from typing import Deque
 
 from nicegui import ui
 
-from scaler.protocol.python.common import TaskStatus
+from scaler.protocol.python.common import TaskResultStatus
 from scaler.protocol.python.message import StateTask
 from scaler.utility.formatter import format_bytes
 from scaler.utility.metadata.profile_result import ProfileResult
 
 # TaskStatus values corresponding to completed tasks (some are in-progress e.g. Running)
 COMPLETED_TASK_STATUSES = {
-    TaskStatus.Success,
-    TaskStatus.Failed,
-    TaskStatus.Canceled,
-    TaskStatus.WorkerDied,
-    TaskStatus.NoWorker,
+    TaskResultStatus.Success,
+    TaskResultStatus.Failed,
+    TaskResultStatus.Canceled,
+    TaskResultStatus.WorkerDied,
+    TaskResultStatus.NoWorker,
 }
 
 

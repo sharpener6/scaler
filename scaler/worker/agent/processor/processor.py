@@ -14,7 +14,7 @@ import zmq
 from scaler.io.config import DUMMY_CLIENT
 from scaler.io.sync_connector import SyncConnector
 from scaler.io.utility import chunk_to_list_of_bytes
-from scaler.protocol.python.common import ObjectContent, TaskStatus
+from scaler.protocol.python.common import ObjectContent, TaskResultStatus
 from scaler.protocol.python.message import (
     ObjectInstruction,
     ObjectRequest,
@@ -190,7 +190,7 @@ class Processor(multiprocessing.get_context("spawn").Process):  # type: ignore
         self.__send_result(
             task.source,
             task.task_id,
-            TaskStatus.Failed,
+            TaskResultStatus.Failed,
             serialize_failure(MissingObjects(",".join([obj.hex() for obj in unknown_object_ids]))),
         )
 
@@ -228,11 +228,11 @@ class Processor(multiprocessing.get_context("spawn").Process):  # type: ignore
                 result = function_with_logger(*args)
 
             result_bytes = self._object_cache.serialize(task.source, result)
-            status = TaskStatus.Success
+            status = TaskResultStatus.Success
 
         except Exception as e:
             logging.exception(f"exception when processing task_id={task.task_id.hex()}:")
-            status = TaskStatus.Failed
+            status = TaskResultStatus.Failed
             result_bytes = serialize_failure(e)
 
         self.__send_result(task.source, task.task_id, status, result_bytes)
@@ -264,7 +264,7 @@ class Processor(multiprocessing.get_context("spawn").Process):  # type: ignore
         # self._client_to_decorator[client] = wrap
         # return wrap(fn)
 
-    def __send_result(self, source: bytes, task_id: bytes, status: TaskStatus, result_bytes: bytes):
+    def __send_result(self, source: bytes, task_id: bytes, status: TaskResultStatus, result_bytes: bytes):
         self._current_task = None
 
         # use uuid to avoid object_id collision, each result object_id is unique, even it's the same object across

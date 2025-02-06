@@ -6,21 +6,29 @@ from scaler.protocol.capnp._python import _common  # noqa
 from scaler.protocol.python.mixins import Message
 
 
-class TaskStatus(enum.Enum):
+class TaskResultStatus(enum.Enum):
     # task is accepted by scheduler, but will have below status
-    Success = _common.TaskStatus.success  # if submit and task is done and get result
-    Failed = _common.TaskStatus.failed  # if submit and task is failed on worker
-    Canceled = _common.TaskStatus.canceled  # if submit and task is canceled
-    NotFound = _common.TaskStatus.notFound  # if submit and task is not found in scheduler
+    Success = _common.TaskResultStatus.success  # if submit and task is done and get result
+    Failed = _common.TaskResultStatus.failed  # if submit and task is failed on worker
     WorkerDied = (
-        _common.TaskStatus.workerDied
+        _common.TaskResultStatus.workerDied
     )  # if submit and worker died (only happened when scheduler keep_task=False)
-    NoWorker = _common.TaskStatus.noWorker  # if submit and scheduler is full (not implemented yet)
+    NoWorker = _common.TaskResultStatus.noWorker  # if submit and scheduler is full (not implemented yet)
 
+
+class TaskCancelConfirmStatus(enum.Enum):
+    Canceled = _common.TaskCancelConfirmStatus.canceled  # if cancel success
+    CancelFailed = _common.TaskCancelConfirmStatus.cancelFailed  # if failed to cancel
+    NotFound = _common.TaskCancelConfirmStatus.notFound  # if try to cancel, and task is not found
+
+
+class TaskStatus(enum):
     # below are only used for monitoring channel, not sent to client
     Inactive = _common.TaskStatus.inactive  # task is scheduled but not allocate to worker
     Running = _common.TaskStatus.running  # task is running in worker
+    Finished = _common.TaskStatus.finished  # task is finished (received task_result)
     Canceling = _common.TaskStatus.canceling  # task is canceling (can be in Inactive or Running state)
+    Canceled = _common.TaskStatus.canceled  # task is canceled (received task cancel confirm)
 
 
 @dataclasses.dataclass

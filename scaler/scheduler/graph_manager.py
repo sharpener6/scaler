@@ -6,8 +6,16 @@ from typing import Dict, List, Optional, Set
 
 from scaler.io.async_binder import AsyncBinder
 from scaler.io.async_connector import AsyncConnector
-from scaler.protocol.python.common import ObjectContent, TaskStatus
-from scaler.protocol.python.message import GraphTask, GraphTaskCancel, StateGraphTask, Task, TaskCancel, TaskResult
+from scaler.protocol.python.common import ObjectContent, TaskResultStatus, TaskCancelConfirmStatus
+from scaler.protocol.python.message import (
+    GraphTask,
+    GraphTaskCancel,
+    StateGraphTask,
+    Task,
+    TaskCancel,
+    TaskResult,
+    TaskCancelConfirm,
+)
 from scaler.scheduler.mixins import ClientManager, GraphTaskManager, ObjectManager, TaskManager
 from scaler.utility.graph.topological_sorter import TopologicalSorter
 from scaler.utility.many_to_many_dict import ManyToManyDict
@@ -97,7 +105,9 @@ class VanillaGraphTaskManager(GraphTaskManager, Looper, Reporter):
 
     async def on_graph_task_cancel(self, client: bytes, graph_task_cancel: GraphTaskCancel):
         if graph_task_cancel.task_id not in self._graph_task_id_to_graph:
-            await self._binder.send(client, TaskResult.new_msg(graph_task_cancel.task_id, TaskStatus.NotFound))
+            await self._binder.send(
+                client, TaskCancelConfirm.new_msg(graph_task_cancel.task_id, TaskCancelConfirmStatus.NotFound, None)
+            )
             return
 
         graph_task_id = self._task_id_to_graph_task_id[graph_task_cancel.task_id]
@@ -105,9 +115,14 @@ class VanillaGraphTaskManager(GraphTaskManager, Looper, Reporter):
         if graph_info.status == _GraphState.Canceling:
             return
 
-        await self.__cancel_one_graph(graph_task_id, TaskResult.new_msg(graph_task_cancel.task_id, TaskStatus.Canceled))
+        await self.__cancel_one_graph(
+            graph_task_id, TaskResult.new_msg(graph_task_cancel.task_id, TaskResultStatus.Success)
+        )
 
-    async def on_graph_sub_task_done(self, result: TaskResult):
+    async def on_graph_sub_task_cancel_confirm(self, task_cancel_confirm: TaskCancelConfirm):
+        pass
+
+    async def on_graph_sub_task_result(self, result: TaskResult):
         graph_task_id = self._task_id_to_graph_task_id[result.task_id]
         graph_info = self._graph_task_id_to_graph[graph_task_id]
         if graph_info.status == _GraphState.Canceling:
@@ -115,11 +130,11 @@ class VanillaGraphTaskManager(GraphTaskManager, Looper, Reporter):
 
         await self.__mark_node_done(result)
 
-        if result.status == TaskStatus.Success:
+        if result.status == TaskResultStatus.Success:
             await self.__check_one_graph(graph_task_id)
             return
 
-        assert result.status != TaskStatus.Success
+        assert result.status != TaskResultStatus.Success
         await self.__cancel_one_graph(graph_task_id, result)
 
     def is_graph_sub_task(self, task_id: bytes):
@@ -173,7 +188,7 @@ class VanillaGraphTaskManager(GraphTaskManager, Looper, Reporter):
     async def __check_one_graph(self, graph_task_id: bytes):
         graph_info = self._graph_task_id_to_graph[graph_task_id]
         if not graph_info.sorter.is_active():
-            await self.__finish_one_graph(graph_task_id, TaskResult.new_msg(graph_task_id, TaskStatus.Success))
+            await self.__finish_one_graph(graph_task_id, TaskResult.new_msg(graph_task_id, TaskResultStatus.Success))
             return
 
         ready_task_ids = graph_info.sorter.get_ready()
@@ -204,15 +219,10 @@ class VanillaGraphTaskManager(GraphTaskManager, Looper, Reporter):
 
         task_info.result_object_ids = result.results
 
-        if result.status == TaskStatus.Success:
+        if result.status == TaskResultStatus.Success:
             task_info.state = _NodeTaskState.Success
-        elif result.status == TaskStatus.Canceled:
-            task_info.state = _NodeTaskState.Canceled
-        elif result.status == TaskStatus.Failed:
+        elif result.status == TaskResultStatus.Failed:
             task_info.state = _NodeTaskState.Failed
-        elif result.status == TaskStatus.NotFound:
-            task_info.state = _NodeTaskState.Canceled
-
         else:
             raise ValueError(f"received unexpected task result {result}")
 

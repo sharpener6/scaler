@@ -24,7 +24,6 @@ struct Task {
 struct TaskCancel {
     struct TaskCancelFlags {
         force @0 :Bool;
-        retrieveTaskObject @1 :Bool;
     }
 
     taskId @0 :Data;
@@ -33,9 +32,19 @@ struct TaskCancel {
 
 struct TaskResult {
     taskId @0 :Data;
-    status @1 :CommonType.TaskStatus;
+    status @1 :CommonType.TaskResultStatus;
     metadata @2 :Data;
     results @3 :List(Data);
+}
+
+struct TaskCancelConfirm {
+    taskId @0 :Data;
+    status @1 :CommonType.TaskCancelConfirmStatus;
+
+    union {
+        noTask @2 :Void;
+        task @3 :Task;
+    }
 }
 
 struct GraphTask {
