@@ -19,16 +19,20 @@ from scaler.protocol.python.message import (
     TaskCancel,
     TaskResult,
     WorkerHeartbeat,
+    TaskCancelConfirm,
 )
 from scaler.protocol.python.mixins import Message
-from scaler.scheduler.client_manager import VanillaClientManager
+from scaler.scheduler.allocate_policy.allocate_policy import AllocatePolicy
+from scaler.scheduler.allocate_policy.even_load_allocate_policy import EvenLoadAllocatePolicy
 from scaler.scheduler.config import SchedulerConfig
-from scaler.scheduler.graph_manager import VanillaGraphTaskManager
-from scaler.scheduler.object_manager import VanillaObjectManager
-from scaler.scheduler.status_reporter import StatusReporter
-from scaler.scheduler.task_manager import VanillaTaskManager
-from scaler.scheduler.worker_manager import VanillaWorkerManager
-from scaler.utility.event_loop import create_async_loop_routine
+from scaler.scheduler.managers.balance_manager import VanillaBalanceManager
+from scaler.scheduler.managers.client_manager import VanillaClientManager
+from scaler.scheduler.managers.graph_manager import VanillaGraphTaskManager
+from scaler.scheduler.managers.object_manager import VanillaObjectManager
+from scaler.scheduler.managers.status_report_manager import StatusReportManager
+from scaler.scheduler.managers.task_manager import VanillaTaskManager
+from scaler.scheduler.managers.worker_manager import VanillaWorkerManager
+from scaler.utility.event_loop import _create_async_loop_routine, create_async_loops
 from scaler.utility.exceptions import ClientShutdownException
 from scaler.utility.zmq_config import ZMQConfig, ZMQType
 
@@ -39,6 +43,8 @@ class Scheduler:
             raise TypeError(
                 f"{self.__class__.__name__}: scheduler address must be tcp type: {config.address.to_address()}"
             )
+
+        self._config = config
 
         self._address_monitor = ZMQConfig(
             type=ZMQType.ipc, host=f"/tmp/{config.address.host}_{config.address.port}_monitor"
@@ -56,19 +62,28 @@ class Scheduler:
             callback=None,
             identity=None,
         )
+
+        if config.allocate_policy == AllocatePolicy.even:
+            self._task_allocate_policy = EvenLoadAllocatePolicy()
+        else:
+            raise ValueError(f"Unknown allocate_policy: {config.allocate_policy}")
+
         self._client_manager = VanillaClientManager(
             client_timeout_seconds=config.client_timeout_seconds, protected=config.protected
         )
         self._object_manager = VanillaObjectManager()
         self._graph_manager = VanillaGraphTaskManager()
-        self._task_manager = VanillaTaskManager(max_number_of_tasks_waiting=config.max_number_of_tasks_waiting)
-        self._worker_manager = VanillaWorkerManager(
-            per_worker_queue_size=config.per_worker_queue_size,
-            timeout_seconds=config.worker_timeout_seconds,
-            load_balance_seconds=config.load_balance_seconds,
-            load_balance_trigger_times=config.load_balance_trigger_times,
+        self._task_manager = VanillaTaskManager(
+            store_tasks=config.store_tasks, max_number_of_tasks_waiting=config.max_number_of_tasks_waiting
         )
-        self._status_reporter = StatusReporter(self._binder_monitor)
+        self._worker_manager = VanillaWorkerManager(
+            timeout_seconds=config.worker_timeout_seconds, task_allocate_policy=self._task_allocate_policy
+        )
+        self._balance_manager = VanillaBalanceManager(
+            load_balance_trigger_times=config.load_balance_trigger_times,
+            task_allocate_policy=self._task_allocate_policy,
+        )
+        self._status_reporter = StatusReportManager(self._binder_monitor)
 
         # register
         self._binder.register(self.on_receive_message)
@@ -88,6 +103,7 @@ class Scheduler:
             self._graph_manager,
         )
         self._worker_manager.register(self._binder, self._binder_monitor, self._task_manager)
+        self._balance_manager.register(self._binder, self._binder_monitor, self._task_manager)
 
         self._status_reporter.register_managers(
             self._binder, self._client_manager, self._object_manager, self._task_manager, self._worker_manager
@@ -95,11 +111,18 @@ class Scheduler:
 
     async def on_receive_message(self, source: bytes, message: Message):
         # =====================================================================================
-        # receive from upstream
+        # client manager
         if isinstance(message, ClientHeartbeat):
             await self._client_manager.on_heartbeat(source, message)
             return
 
+        # scheduler receives client  shutdown request from upstream
+        if isinstance(message, ClientDisconnect):
+            await self._client_manager.on_client_disconnect(source, message)
+            return
+
+        # =====================================================================================
+        # graph manager
         if isinstance(message, GraphTask):
             await self._graph_manager.on_graph_task(source, message)
             return
@@ -108,39 +131,37 @@ class Scheduler:
             await self._graph_manager.on_graph_task_cancel(source, message)
             return
 
+        # =====================================================================================
+        # task manager
         if isinstance(message, Task):
-            await self._task_manager.on_task_new(source, message)
+            await self._task_manager.on_task_new(message)
             return
 
         if isinstance(message, TaskCancel):
             await self._task_manager.on_task_cancel(source, message)
             return
 
-        # scheduler receives client shutdown request from upstream
-        if isinstance(message, ClientDisconnect):
-            await self._client_manager.on_client_disconnect(source, message)
+        if isinstance(message, TaskCancelConfirm):
+            await self._task_manager.on_task_cancel_confirm(message)
+            return
+
+        if isinstance(message, TaskResult):
+            await self._task_manager.on_task_result(message)
             return
 
         # =====================================================================================
-        # receive from downstream
-        # receive worker heartbeat from downstream
+        # worker manager
         if isinstance(message, WorkerHeartbeat):
             await self._worker_manager.on_heartbeat(source, message)
             return
 
-        # receive task result from downstream
-        if isinstance(message, TaskResult):
-            await self._worker_manager.on_task_result(message)
-            return
-
-        # scheduler receives worker disconnect request from downstream
+        # receives worker disconnect request from downstream
         if isinstance(message, DisconnectRequest):
             await self._worker_manager.on_disconnect(source, message)
             return
 
         # =====================================================================================
-        # object related
-        # scheduler receives object request from upstream
+        # object manager
         if isinstance(message, ObjectInstruction):
             await self._object_manager.on_object_instruction(source, message)
             return
@@ -152,18 +173,19 @@ class Scheduler:
         logging.error(f"{self.__class__.__name__}: unknown message from {source=}: {message}")
 
     async def get_loops(self):
-        loops = [
-            create_async_loop_routine(self._binder.routine, 0),
-            create_async_loop_routine(self._graph_manager.routine, 0),
-            create_async_loop_routine(self._task_manager.routine, 0),
-            create_async_loop_routine(self._client_manager.routine, CLEANUP_INTERVAL_SECONDS),
-            create_async_loop_routine(self._object_manager.routine, CLEANUP_INTERVAL_SECONDS),
-            create_async_loop_routine(self._worker_manager.routine, CLEANUP_INTERVAL_SECONDS),
-            create_async_loop_routine(self._status_reporter.routine, STATUS_REPORT_INTERVAL_SECONDS),
-        ]
-
-        # if self._log_forwarder is not None:
-        #     loops.append(create_async_loop_routine(self._log_forwarder.routine, 0))
+        loops = create_async_loops(
+            [
+                (self._binder.routine, 0),
+                (self._graph_manager.routine, 0),
+                (self._task_manager.routine, 0),
+                (self._task_manager.debug_routine, 10),
+                (self._client_manager.routine, CLEANUP_INTERVAL_SECONDS),
+                (self._object_manager.routine, CLEANUP_INTERVAL_SECONDS),
+                (self._worker_manager.routine, CLEANUP_INTERVAL_SECONDS),
+                (self._balance_manager.routine, self._config.load_balance_seconds),
+                (self._status_reporter.routine, STATUS_REPORT_INTERVAL_SECONDS),
+            ]
+        )
 
         try:
             await asyncio.gather(*loops)
