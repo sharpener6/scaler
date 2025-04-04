@@ -18,7 +18,7 @@ from scaler.protocol.python.message import (
     WorkerHeartbeatEcho,
 )
 from scaler.protocol.python.mixins import Message
-from scaler.utility.event_loop import create_async_loop_routine, register_event_loop
+from scaler.utility.event_loop import register_event_loop, create_async_loops
 from scaler.utility.exceptions import ClientShutdownException
 from scaler.utility.logging.utility import setup_logger
 from scaler.utility.zmq_config import ZMQConfig
@@ -39,6 +39,7 @@ class SymphonyWorker(multiprocessing.get_context("spawn").Process):  # type: ign
         name: str,
         address: ZMQConfig,
         io_threads: int,
+        task_queue_size: int,
         service_name: str,
         base_concurrency: int,
         heartbeat_interval_seconds: int,
@@ -51,6 +52,7 @@ class SymphonyWorker(multiprocessing.get_context("spawn").Process):  # type: ign
         self._address = address
         self._io_threads = io_threads
 
+        self._task_queue_size = task_queue_size
         self._service_name = service_name
         self._base_concurrency = base_concurrency
 
@@ -85,7 +87,7 @@ class SymphonyWorker(multiprocessing.get_context("spawn").Process):  # type: ign
             identity=None,
         )
 
-        self._heartbeat_manager = SymphonyHeartbeatManager()
+        self._heartbeat_manager = SymphonyHeartbeatManager(task_queue_size=self._task_queue_size)
         self._task_manager = SymphonyTaskManager(
             base_concurrency=self._base_concurrency, service_name=self._service_name
         )
@@ -133,14 +135,17 @@ class SymphonyWorker(multiprocessing.get_context("spawn").Process):  # type: ign
         raise TypeError(f"Unknown {message=}")
 
     async def __get_loops(self):
+        loops = create_async_loops(
+            [
+                (self._connector_external.routine, 0),
+                (self._heartbeat_manager.routine, self._heartbeat_interval_seconds),
+                (self._timeout_manager.routine, 1),
+                (self._task_manager.process_task, 0),
+                (self._task_manager.resolve_tasks, 0),
+            ]
+        )
         try:
-            await asyncio.gather(
-                create_async_loop_routine(self._connector_external.routine, 0),
-                create_async_loop_routine(self._heartbeat_manager.routine, self._heartbeat_interval_seconds),
-                create_async_loop_routine(self._timeout_manager.routine, 1),
-                create_async_loop_routine(self._task_manager.process_task, 0),
-                create_async_loop_routine(self._task_manager.resolve_tasks, 0),
-            )
+            await asyncio.gather(*loops)
         except asyncio.CancelledError:
             pass
         except (ClientShutdownException, TimeoutError) as e:

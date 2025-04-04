@@ -18,7 +18,7 @@ from scaler.protocol.python.message import (
     WorkerHeartbeatEcho,
 )
 from scaler.protocol.python.mixins import Message
-from scaler.utility.event_loop import create_async_loop_routine, register_event_loop
+from scaler.utility.event_loop import register_event_loop, create_async_loops
 from scaler.utility.exceptions import ClientShutdownException
 from scaler.utility.logging.utility import setup_logger
 from scaler.utility.zmq_config import ZMQConfig
@@ -37,6 +37,7 @@ class Worker(multiprocessing.get_context("spawn").Process):  # type: ignore
         name: str,
         address: ZMQConfig,
         io_threads: int,
+        task_queue_size: int,
         heartbeat_interval_seconds: int,
         garbage_collect_interval_seconds: int,
         trim_memory_threshold_bytes: int,
@@ -53,6 +54,7 @@ class Worker(multiprocessing.get_context("spawn").Process):  # type: ignore
         self._address = address
         self._io_threads = io_threads
 
+        self._task_queue_size = task_queue_size
         self._heartbeat_interval_seconds = heartbeat_interval_seconds
         self._garbage_collect_interval_seconds = garbage_collect_interval_seconds
         self._trim_memory_threshold_bytes = trim_memory_threshold_bytes
@@ -93,7 +95,7 @@ class Worker(multiprocessing.get_context("spawn").Process):  # type: ignore
             identity=None,
         )
 
-        self._heartbeat_manager = VanillaHeartbeatManager()
+        self._heartbeat_manager = VanillaHeartbeatManager(task_queue_size=self._task_queue_size)
         self._profiling_manager = VanillaProfilingManager()
         self._task_manager = VanillaTaskManager(task_timeout_seconds=self._task_timeout_seconds)
         self._timeout_manager = VanillaTimeoutManager(death_timeout_seconds=self._death_timeout_seconds)
@@ -160,15 +162,18 @@ class Worker(multiprocessing.get_context("spawn").Process):  # type: ignore
     async def __get_loops(self):
         await self._processor_manager.initialize()
 
+        loops = create_async_loops(
+            [
+                (self._connector_external.routine, 0),
+                (self._heartbeat_manager.routine, self._heartbeat_interval_seconds),
+                (self._timeout_manager.routine, 1),
+                (self._task_manager.routine, 0),
+                (self._profiling_manager.routine, PROFILING_INTERVAL_SECONDS),
+                (self._processor_manager.routine, 0),
+            ]
+        )
         try:
-            await asyncio.gather(
-                create_async_loop_routine(self._connector_external.routine, 0),
-                create_async_loop_routine(self._heartbeat_manager.routine, self._heartbeat_interval_seconds),
-                create_async_loop_routine(self._timeout_manager.routine, 1),
-                create_async_loop_routine(self._task_manager.routine, 0),
-                create_async_loop_routine(self._profiling_manager.routine, PROFILING_INTERVAL_SECONDS),
-                create_async_loop_routine(self._processor_manager.routine, 0),
-            )
+            await asyncio.gather(*loops)
         except asyncio.CancelledError:
             pass
         except (ClientShutdownException, TimeoutError) as e:
