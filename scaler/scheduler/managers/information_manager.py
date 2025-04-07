@@ -1,16 +1,26 @@
+import json
+import logging
 from typing import Optional
 
 import psutil
 
 from scaler.io.async_binder import AsyncBinder
 from scaler.io.async_connector import AsyncConnector
-from scaler.protocol.python.message import StateScheduler
+from scaler.protocol.python.message import StateScheduler, DebugCommand, DebugCommandResponse
 from scaler.protocol.python.status import Resource
-from scaler.scheduler.mixins import ClientManager, ObjectManager, TaskManager, WorkerManager
+from scaler.scheduler.managers.mixins import (
+    ClientManager,
+    ObjectManager,
+    TaskManager,
+    WorkerManager,
+    InformationManager,
+)
 from scaler.utility.mixins import Looper
 
+UNKNOWN_COMMAND_RESPONSE = b'{"error": "unknown command"}'
 
-class StatusReporter(Looper):
+
+class VanillaInformationManager(InformationManager, Looper):
     def __init__(self, binder: AsyncConnector):
         self._monitor_binder: AsyncConnector = binder
         self._process = psutil.Process()
@@ -34,6 +44,22 @@ class StatusReporter(Looper):
         self._object_manager = object_manager
         self._task_manager = task_manager
         self._worker_manager = worker_manager
+
+    async def on_debug_command(self, source: bytes, command: DebugCommand):
+        command_str = command.command.decode()
+        command_tuple = command_str.split(" ")
+
+        response = None
+        if command_tuple[0] == "task":
+            if command_tuple[1] == "all":
+                response = json.dumps(self._task_manager.get_task_paths(set()))
+
+        if response is None:
+            logging.info(f"Source[{source.hex()}]: unknown debug command '{command_str}'")
+            response = UNKNOWN_COMMAND_RESPONSE
+
+        await self._binder.send(source, DebugCommandResponse.new_msg(response=response))
+
 
     async def routine(self):
         await self._monitor_binder.send(

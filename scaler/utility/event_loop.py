@@ -1,7 +1,7 @@
 import asyncio
 import enum
 import logging
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Tuple, List
 
 
 class EventLoopType(enum.Enum):
@@ -31,7 +31,22 @@ def register_event_loop(event_loop_type: str):
     logging.info(f"use event loop: {event_loop_type}")
 
 
-def create_async_loop_routine(routine: Callable[[], Awaitable], seconds: int):
+def create_async_loops(routines: List[Tuple[Callable[[], Awaitable], int]]) -> List:
+    """create async loops for each routine in the list, if seconds is negative, means disable, -1 means most aggressive
+    passing 0 meaning execute routine every 1 second"""
+
+    loops = []
+    for routine, seconds in routines:
+        if seconds < 0:
+            logging.info(f"{routine.__self__.__class__.__name__}: disabled")  # type: ignore[attr-defined]
+            continue
+
+        loops.append(_create_async_loop_routine(routine, seconds))
+
+    return loops
+
+
+def _create_async_loop_routine(routine: Callable[[], Awaitable], seconds: int):
     async def loop():
         logging.info(f"{routine.__self__.__class__.__name__}: started")  # type: ignore[attr-defined]
         try:

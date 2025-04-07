@@ -8,7 +8,7 @@ from scaler.io.async_connector import AsyncConnector
 from scaler.protocol.python.common import ObjectContent
 from scaler.protocol.python.message import ObjectInstruction, ObjectRequest, ObjectResponse
 from scaler.protocol.python.status import ObjectManagerStatus
-from scaler.scheduler.mixins import ClientManager, ObjectManager, WorkerManager
+from scaler.scheduler.managers.mixins import ClientManager, ObjectManager, WorkerManager
 from scaler.scheduler.object_usage.object_tracker import ObjectTracker, ObjectUsage
 from scaler.utility.formatter import format_bytes
 from scaler.utility.mixins import Looper, Reporter
