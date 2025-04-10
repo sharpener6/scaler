@@ -1,7 +1,4 @@
 import argparse
-import asyncio
-import functools
-import signal
 
 from scaler.io.config import (
     DEFAULT_CLIENT_TIMEOUT_SECONDS,
@@ -13,16 +10,27 @@ from scaler.io.config import (
     DEFAULT_PER_WORKER_QUEUE_SIZE,
     DEFAULT_WORKER_TIMEOUT_SECONDS,
 )
-from scaler.scheduler.config import SchedulerConfig
-from scaler.scheduler.scheduler import scheduler_main
-from scaler.utility.event_loop import EventLoopType, register_event_loop
+from scaler.object_storage.mini_redis_server_process import MiniRedisProcess
+from scaler.scheduler.scheduler_process import SchedulerProcess
+from scaler.utility.event_loop import EventLoopType
 from scaler.utility.logging.utility import setup_logger
+from scaler.utility.network_utility import get_available_tcp_port
+from scaler.utility.object_storage_config import ObjectStorageConfig
 from scaler.utility.zmq_config import ZMQConfig
 
 
 def get_args():
     parser = argparse.ArgumentParser("scaler scheduler", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--io-threads", type=int, default=DEFAULT_IO_THREADS, help="number of io threads for zmq")
+    parser.add_argument(
+        "--object-storage-address",
+        "-osa",
+        type=str,
+        default=None,
+        help="specify object storage address, if not specify, scaler will spawn a simple object storage server that "
+        "follow redis RESP protocol, also it only supports limit functionalities, the object storage address will be"
+        "send to client and workers so they can talk to object storage server directly, e.g.: localhost:6379",
+    )
     parser.add_argument(
         "--max-number-of-tasks-waiting",
         "-mt",
@@ -110,10 +118,26 @@ def main():
     args = get_args()
     setup_logger(args.logging_paths, args.logging_config_file, args.logging_level)
 
-    scheduler_config = SchedulerConfig(
+    if not args.object_storage_address:
+        object_storage_address = ObjectStorageConfig.from_string(f"localhost:{get_available_tcp_port()}")
+        object_storage = MiniRedisProcess(
+            host=object_storage_address.host,
+            port=object_storage_address.port,
+            idle_timeout=5,
+            command_timeout=5,
+            logging_paths=args.logging_paths,
+            logging_config_file=args.logging_config_file,
+        )
+        object_storage.start()
+    else:
+        object_storage_address = ObjectStorageConfig.from_string(args.object_storage_address)
+        object_storage = None
+
+    scheduler = SchedulerProcess(
         event_loop=args.event_loop,
         address=args.address,
         io_threads=args.io_threads,
+        object_storage_config=object_storage_address,
         max_number_of_tasks_waiting=args.max_number_of_tasks_waiting,
         per_worker_queue_size=args.per_worker_queue_size,
         client_timeout_seconds=args.client_timeout_seconds,
@@ -122,20 +146,19 @@ def main():
         load_balance_seconds=args.load_balance_seconds,
         load_balance_trigger_times=args.load_balance_trigger_times,
         protected=args.protected,
+        logging_paths=args.logging_paths,
+        logging_config_file=args.logging_config_file,
     )
+    scheduler.start()
 
-    register_event_loop(args.event_loop)
+    try:
+        if object_storage is not None:
+            object_storage.join()
+        scheduler.join()
+    except KeyboardInterrupt as e:
+        pass
 
-    loop = asyncio.get_event_loop()
-    __register_signal(loop)
-    loop.run_until_complete(scheduler_main(scheduler_config))
-
-
-def __register_signal(loop):
-    loop.add_signal_handler(signal.SIGINT, functools.partial(__handle_signal))
-    loop.add_signal_handler(signal.SIGTERM, functools.partial(__handle_signal))
-
-
-def __handle_signal():
-    for task in asyncio.all_tasks():
-        task.cancel()
+    finally:
+        if object_storage is not None:
+            object_storage.terminate()
+        scheduler.terminate()

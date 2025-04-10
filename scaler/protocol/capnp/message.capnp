@@ -55,6 +55,7 @@ struct ClientHeartbeat {
 }
 
 struct ClientHeartbeatEcho {
+    objectStorageAddress @0 :Data;
 }
 
 struct WorkerHeartbeat {
@@ -67,10 +68,11 @@ struct WorkerHeartbeat {
 }
 
 struct WorkerHeartbeatEcho {
+    objectStorageAddress @0 :Data;
 }
 
 struct ObjectInstruction {
-    instructionType @0 :ObjectInstructionType;
+    instructionType @0 :ObjectIn structionType;
     objectUser @1 :Data;
     objectContent @2 :CommonType.ObjectContent;
 

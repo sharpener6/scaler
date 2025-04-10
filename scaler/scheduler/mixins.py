@@ -9,7 +9,6 @@ from scaler.protocol.python.message import (
     GraphTask,
     GraphTaskCancel,
     ObjectInstruction,
-    ObjectRequest,
     Task,
     TaskCancel,
     TaskResult,
@@ -21,10 +20,6 @@ from scaler.utility.mixins import Reporter
 class ObjectManager(Reporter):
     @abc.abstractmethod
     async def on_object_instruction(self, source: bytes, request: ObjectInstruction):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    async def on_object_request(self, source: bytes, request: ObjectRequest):
         raise NotImplementedError()
 
     @abc.abstractmethod

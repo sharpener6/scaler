@@ -3,7 +3,6 @@ import socket
 from typing import Optional, Tuple
 
 from scaler.cluster.cluster import Cluster
-from scaler.cluster.scheduler import SchedulerProcess
 from scaler.io.config import (
     DEFAULT_CLIENT_TIMEOUT_SECONDS,
     DEFAULT_GARBAGE_COLLECT_INTERVAL_SECONDS,
@@ -20,7 +19,10 @@ from scaler.io.config import (
     DEFAULT_WORKER_DEATH_TIMEOUT,
     DEFAULT_WORKER_TIMEOUT_SECONDS,
 )
-from scaler.utility.network_util import get_available_tcp_port
+from scaler.object_storage.mini_redis_server_process import MiniRedisProcess
+from scaler.scheduler.scheduler_process import SchedulerProcess
+from scaler.utility.network_utility import get_available_tcp_port
+from scaler.utility.object_storage_config import ObjectStorageConfig
 from scaler.utility.zmq_config import ZMQConfig
 
 
@@ -30,6 +32,7 @@ class SchedulerClusterCombo:
         n_workers: int,
         address: Optional[str] = None,
         worker_io_threads: int = DEFAULT_IO_THREADS,
+        object_storage_address: Optional[str] = None,
         scheduler_io_threads: int = DEFAULT_IO_THREADS,
         max_number_of_tasks_waiting: int = DEFAULT_MAX_NUMBER_OF_TASKS_WAITING,
         heartbeat_interval_seconds: int = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
@@ -70,9 +73,25 @@ class SchedulerClusterCombo:
             logging_level=logging_level,
             logging_config_file=logging_config_file,
         )
+
+        if not object_storage_address:
+            object_storage_config = ObjectStorageConfig.from_string(f"localhost:{get_available_tcp_port()}")
+            self._object_storage = MiniRedisProcess(
+                host=object_storage_config.host,
+                port=object_storage_config.port,
+                idle_timeout=5,
+                command_timeout=5,
+                logging_paths=logging_paths,
+                logging_config_file=logging_config_file,
+            )
+        else:
+            object_storage_config = ObjectStorageConfig.from_string(object_storage_address)
+            self._object_storage = None
+
         self._scheduler = SchedulerProcess(
             address=self._address,
             io_threads=scheduler_io_threads,
+            object_storage_config=object_storage_config,
             max_number_of_tasks_waiting=max_number_of_tasks_waiting,
             per_worker_queue_size=per_worker_queue_size,
             client_timeout_seconds=client_timeout_seconds,
@@ -82,11 +101,12 @@ class SchedulerClusterCombo:
             load_balance_trigger_times=load_balance_trigger_times,
             protected=protected,
             event_loop=event_loop,
-            logging_path=logging_paths,
+            logging_paths=logging_paths,
             logging_config_file=logging_config_file,
         )
 
         self._cluster.start()
+        self._object_storage.start()
         self._scheduler.start()
         logging.info(f"{self.__get_prefix()} started")
 
@@ -96,6 +116,8 @@ class SchedulerClusterCombo:
     def shutdown(self):
         logging.info(f"{self.__get_prefix()} shutdown")
         self._cluster.terminate()
+        if self._object_storage is not None:
+            self._object_storage.terminate()
         self._scheduler.terminate()
         self._cluster.join()
         self._scheduler.join()

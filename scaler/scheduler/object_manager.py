@@ -3,15 +3,18 @@ import logging
 from asyncio import Queue
 from typing import List, Optional, Set
 
+from redis import Redis
+
 from scaler.io.async_binder import AsyncBinder
 from scaler.io.async_connector import AsyncConnector
 from scaler.protocol.python.common import ObjectContent
-from scaler.protocol.python.message import ObjectInstruction, ObjectRequest, ObjectResponse
+from scaler.protocol.python.message import ObjectInstruction
 from scaler.protocol.python.status import ObjectManagerStatus
 from scaler.scheduler.mixins import ClientManager, ObjectManager, WorkerManager
 from scaler.scheduler.object_usage.object_tracker import ObjectTracker, ObjectUsage
 from scaler.utility.formatter import format_bytes
 from scaler.utility.mixins import Looper, Reporter
+from scaler.utility.object_storage_config import ObjectStorageConfig
 
 
 @dataclasses.dataclass
@@ -27,7 +30,8 @@ class _ObjectCreation(ObjectUsage):
 
 
 class VanillaObjectManager(ObjectManager, Looper, Reporter):
-    def __init__(self):
+    def __init__(self, object_storage_config: ObjectStorageConfig):
+        self._object_storage_client = Redis(host=object_storage_config.host, port=object_storage_config.port)
         self._object_storage: ObjectTracker[bytes, _ObjectCreation] = ObjectTracker(
             "object_usage", self.__finished_object_storage
         )
@@ -64,13 +68,6 @@ class VanillaObjectManager(ObjectManager, Looper, Reporter):
             f"received unknown object response type instruction_type={instruction.instruction_type} from "
             f"source={instruction.object_user!r}"
         )
-
-    async def on_object_request(self, source: bytes, request: ObjectRequest):
-        if request.request_type == ObjectRequest.ObjectRequestType.Get:
-            await self.__process_get_request(source, request)
-            return
-
-        logging.error(f"received unknown object request type {request=} from {source=!r}")
 
     def on_add_object(
         self,
@@ -120,9 +117,6 @@ class VanillaObjectManager(ObjectManager, Looper, Reporter):
     def get_status(self) -> ObjectManagerStatus:
         return ObjectManagerStatus.new_msg(self._object_storage.object_count())
 
-    async def __process_get_request(self, source: bytes, request: ObjectRequest):
-        await self._binder.send(source, self.__construct_response(request))
-
     async def __routine_send_objects_deletions(self):
         deleted_object_ids = [await self._queue_deleted_object_ids.get()]
         self._queue_deleted_object_ids.task_done()
@@ -162,25 +156,3 @@ class VanillaObjectManager(ObjectManager, Looper, Reporter):
             f"size={format_bytes(len(creation.object_bytes))}"
         )
         self._queue_deleted_object_ids.put_nowait(creation.object_id)
-
-    def __construct_response(self, request: ObjectRequest) -> ObjectResponse:
-        object_ids = []
-        object_types = []
-        object_names = []
-        object_bytes = []
-        for object_id in request.object_ids:
-            if not self.has_object(object_id):
-                continue
-
-            object_info = self._object_storage.get_object(object_id)
-            object_ids.append(object_info.object_id)
-            object_types.append(object_info.object_type)
-            object_names.append(object_info.object_name)
-            object_bytes.append(object_info.object_bytes)
-
-        return ObjectResponse.new_msg(
-            ObjectResponse.ObjectResponseType.Content,
-            ObjectContent.new_msg(
-                tuple(request.object_ids), tuple(object_types), tuple(object_names), tuple(object_bytes)
-            ),
-        )

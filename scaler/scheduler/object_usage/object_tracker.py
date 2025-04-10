@@ -22,6 +22,8 @@ class ObjectTracker(Generic[ObjectKeyType, ObjectType]):
 
         self._current_blocks: Set[ObjectKeyType] = set()
         self._object_key_to_block: ManyToManyDict[ObjectKeyType, ObjectKeyType] = ManyToManyDict()
+
+        # TODO: this should go with redis
         self._object_key_to_object: Dict[ObjectKeyType, ObjectType] = dict()
 
     def object_count(self):

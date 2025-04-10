@@ -14,7 +14,6 @@ from scaler.protocol.python.message import (
     GraphTask,
     GraphTaskCancel,
     ObjectInstruction,
-    ObjectRequest,
     Task,
     TaskCancel,
     TaskResult,
@@ -57,12 +56,15 @@ class Scheduler:
             identity=None,
         )
         self._client_manager = VanillaClientManager(
-            client_timeout_seconds=config.client_timeout_seconds, protected=config.protected
+            object_storage_config=config.object_storage_config,
+            client_timeout_seconds=config.client_timeout_seconds,
+            protected=config.protected,
         )
-        self._object_manager = VanillaObjectManager()
+        self._object_manager = VanillaObjectManager(object_storage_config=config.object_storage_config)
         self._graph_manager = VanillaGraphTaskManager()
         self._task_manager = VanillaTaskManager(max_number_of_tasks_waiting=config.max_number_of_tasks_waiting)
         self._worker_manager = VanillaWorkerManager(
+            object_storage_config=config.object_storage_config,
             per_worker_queue_size=config.per_worker_queue_size,
             timeout_seconds=config.worker_timeout_seconds,
             load_balance_seconds=config.load_balance_seconds,
@@ -143,10 +145,6 @@ class Scheduler:
         # scheduler receives object request from upstream
         if isinstance(message, ObjectInstruction):
             await self._object_manager.on_object_instruction(source, message)
-            return
-
-        if isinstance(message, ObjectRequest):
-            await self._object_manager.on_object_request(source, message)
             return
 
         logging.error(f"{self.__class__.__name__}: unknown message from {source=}: {message}")
