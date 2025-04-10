@@ -21,6 +21,7 @@ from scaler.protocol.python.status import ProcessorStatus, Resource, WorkerManag
 from scaler.scheduler.allocators.queued import QueuedAllocator
 from scaler.scheduler.mixins import TaskManager, WorkerManager
 from scaler.utility.mixins import Looper, Reporter
+from scaler.utility.object_storage_config import ObjectStorageConfig
 
 UINT8_MAX = 2**8 - 1
 
@@ -28,11 +29,13 @@ UINT8_MAX = 2**8 - 1
 class VanillaWorkerManager(WorkerManager, Looper, Reporter):
     def __init__(
         self,
+        object_storage_config: ObjectStorageConfig,
         per_worker_queue_size: int,
         timeout_seconds: int,
         load_balance_seconds: int,
         load_balance_trigger_times: int,
     ):
+        self._object_storage_config = object_storage_config
         self._timeout_seconds = timeout_seconds
         self._load_balance_seconds = load_balance_seconds
         self._load_balance_trigger_times = load_balance_trigger_times
@@ -97,7 +100,9 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
             await self._binder_monitor.send(StateWorker.new_msg(worker, b"connected"))
 
         self._worker_alive_since[worker] = (time.time(), info)
-        await self._binder.send(worker, WorkerHeartbeatEcho.new_msg())
+        await self._binder.send(
+            worker, WorkerHeartbeatEcho.new_msg(object_storage_address=self._object_storage_config.to_bytes())
+        )
 
     async def on_client_shutdown(self, client: bytes):
         for worker in self._allocator.get_worker_ids():

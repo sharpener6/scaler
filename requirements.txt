@@ -5,3 +5,4 @@ psutil
 pycapnp
 pyzmq
 tblib
+redis

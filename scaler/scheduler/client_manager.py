@@ -15,11 +15,13 @@ from scaler.protocol.python.status import ClientManagerStatus
 from scaler.scheduler.mixins import ClientManager, ObjectManager, TaskManager, WorkerManager
 from scaler.utility.exceptions import ClientShutdownException
 from scaler.utility.mixins import Looper, Reporter
+from scaler.utility.object_storage_config import ObjectStorageConfig
 from scaler.utility.one_to_many_dict import OneToManyDict
 
 
 class VanillaClientManager(ClientManager, Looper, Reporter):
-    def __init__(self, client_timeout_seconds: int, protected: bool):
+    def __init__(self, object_storage_config: ObjectStorageConfig, client_timeout_seconds: int, protected: bool):
+        self._object_storage_config = object_storage_config
         self._client_timeout_seconds = client_timeout_seconds
         self._protected = protected
         self._client_to_task_ids: OneToManyDict[bytes, bytes] = OneToManyDict()
@@ -62,7 +64,9 @@ class VanillaClientManager(ClientManager, Looper, Reporter):
         return self._client_to_task_ids.remove_value(task_id)
 
     async def on_heartbeat(self, client: bytes, info: ClientHeartbeat):
-        await self._binder.send(client, ClientHeartbeatEcho.new_msg())
+        await self._binder.send(
+            client, ClientHeartbeatEcho.new_msg(object_storage_address=self._object_storage_config.to_string())
+        )
         if client not in self._client_last_seen:
             logging.info(f"client {client!r} connected")
 
