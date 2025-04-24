@@ -7,8 +7,8 @@ from scaler.client.agent.mixins import FutureManager
 from scaler.client.future import ScalerFuture
 from scaler.client.serializer.mixins import Serializer
 from scaler.io.utility import concat_list_of_bytes
-from scaler.protocol.python.common import TaskStatus
-from scaler.protocol.python.message import ObjectResponse, TaskCancel, TaskResult
+from scaler.protocol.python.common import TaskResultType, TaskCancelConfirmType
+from scaler.protocol.python.message import ObjectResponse, TaskCancel, TaskResult, TaskCancelConfirm
 from scaler.utility.exceptions import DisconnectedError, NoWorkerError, TaskNotFoundError, WorkerDiedError
 from scaler.utility.metadata.profile_result import retrieve_profiling_result_from_task_result
 from scaler.utility.object_utility import deserialize_failure
@@ -20,7 +20,7 @@ class ClientFutureManager(FutureManager):
         self._serializer = serializer
 
         self._task_id_to_future: Dict[bytes, ScalerFuture] = dict()
-        self._object_id_to_future: Dict[bytes, Tuple[TaskStatus, ScalerFuture]] = dict()
+        self._object_id_to_future: Dict[bytes, Tuple[TaskResultType, ScalerFuture]] = dict()
 
     def add_future(self, future: Future):
         assert isinstance(future, ScalerFuture)
@@ -57,48 +57,48 @@ class ClientFutureManager(FutureManager):
 
             profile_result = retrieve_profiling_result_from_task_result(result)
 
-            try:
-                if result.status == TaskStatus.NotFound:
-                    future.set_exception(TaskNotFoundError(f"task not found: {task_id.hex()}"), profile_result)
-                    return
+            if result.result_type not in TaskResultType:
+                raise TypeError(f"Unknown task status: {result.result_type}")
 
-                if result.status == TaskStatus.WorkerDied:
-                    future.set_exception(
-                        WorkerDiedError(f"worker died when processing task: {task_id.hex()}"), profile_result
-                    )
-                    return
+            if result.result_type == TaskResultType.FailedWorkerDied:
+                future.set_exception(
+                    WorkerDiedError(f"worker died when processing task: {task_id.hex()}"), profile_result
+                )
 
-                if result.status == TaskStatus.NoWorker:
-                    future.set_exception(
-                        NoWorkerError(f"no available worker when processing task: {task_id.hex()}"), profile_result
-                    )
-                    return
+            elif result.result_type == TaskResultType.Success:
+                assert len(result.results) == 1
+                result_object_id = result.results[0]
+                future.set_result_ready(result_object_id, profile_result)
+                self._object_id_to_future[result_object_id] = result.result_type, future
 
-                if result.status == TaskStatus.Canceled:
-                    future.set_exception(DisconnectedError("client disconnected"), profile_result)
-                    return
+            elif result.result_type == TaskResultType.Failed:
+                assert len(result.results) == 1
+                result_object_id = result.results[0]
+                future.set_result_ready(result_object_id, profile_result)
+                self._object_id_to_future[result_object_id] = result.result_type, future
+                return
 
-                if result.status == TaskStatus.Success:
-                    assert len(result.results) == 1
-                    result_object_id = result.results[0]
-                    future.set_result_ready(result_object_id, profile_result)
-                    self._object_id_to_future[result_object_id] = result.status, future
-                    return
-
-                if result.status == TaskStatus.Failed:
-                    assert len(result.results) == 1
-                    result_object_id = result.results[0]
-                    future.set_result_ready(result_object_id, profile_result)
-                    self._object_id_to_future[result_object_id] = result.status, future
-                    return
-
-                raise TypeError(f"Unknown task status: {result.status}")
-            except InvalidStateError:
-                return  # Future got canceled
-
-    def on_cancel_task(self, task_cancel: TaskCancel):
+    def on_task_cancel_confirm(self, cancel_confirm: TaskCancelConfirm):
         with self._lock:
-            self._task_id_to_future.pop(task_cancel.task_id, None)
+            task_id = cancel_confirm.task_id
+            if task_id not in self._task_id_to_future:
+                return
+
+            future = self._task_id_to_future.pop(task_id)
+            assert cancel_confirm.task_id == future.task_id
+
+            if cancel_confirm.cancel_confirm_type not in TaskCancelConfirmType:
+                raise TypeError(f"Unknown task cancel confirm type: {cancel_confirm.cancel_confirm_type}")
+
+            if cancel_confirm.cancel_confirm_type == TaskCancelConfirmType.CancelNotFound:
+                future.set_exception(TaskNotFoundError(f"task not found: {task_id.hex()}"), None)
+
+            elif cancel_confirm.cancel_confirm_type == TaskCancelConfirmType.Canceled:
+                future.set_exception(DisconnectedError("task is canceled"), None)
+
+            elif cancel_confirm.cancel_confirm_type == TaskCancelConfirmType.CancelFailed:
+                logging.info(f"canceling task_id={task_id.hex()} failed")
+                self._task_id_to_future[task_id] = future
 
     def on_object_response(self, response: ObjectResponse):
         for object_id, object_name, object_bytes in zip(
@@ -112,10 +112,10 @@ class ClientFutureManager(FutureManager):
             status, future = self._object_id_to_future.pop(object_id)
 
             try:
-                if status == TaskStatus.Success:
+                if status == TaskResultType.Success:
                     future.set_result(self._serializer.deserialize(concat_list_of_bytes(object_bytes)))
 
-                elif status == TaskStatus.Failed:
+                elif status == TaskResultType.Failed:
                     future.set_exception(deserialize_failure(concat_list_of_bytes(object_bytes)))
             except InvalidStateError:
                 continue  # future got canceled

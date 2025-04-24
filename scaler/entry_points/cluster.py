@@ -11,6 +11,7 @@ from scaler.io.config import (
     DEFAULT_TASK_TIMEOUT_SECONDS,
     DEFAULT_TRIM_MEMORY_THRESHOLD_BYTES,
     DEFAULT_WORKER_DEATH_TIMEOUT,
+    DEFAULT_PER_WORKER_QUEUE_SIZE,
 )
 from scaler.utility.event_loop import EventLoopType, register_event_loop
 from scaler.utility.zmq_config import ZMQConfig
@@ -29,6 +30,13 @@ def get_args():
         type=str,
         default=None,
         help="worker names to replace default worker names (host names), separate by comma",
+    )
+    parser.add_argument(
+        "--per-worker-task-queue-size",
+        "-qs",
+        type=int,
+        default=DEFAULT_PER_WORKER_QUEUE_SIZE,
+        help="specify per worker queue size",
     )
     parser.add_argument(
         "--heartbeat-interval",
@@ -126,6 +134,7 @@ def main():
     cluster = Cluster(
         address=args.address,
         worker_names=worker_names,
+        per_worker_task_queue_size=args.per_worker_task_queue_size,
         heartbeat_interval_seconds=args.heartbeat_interval,
         task_timeout_seconds=args.task_timeout_seconds,
         garbage_collect_interval_seconds=args.garbage_collect_interval_seconds,
