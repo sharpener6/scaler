@@ -14,7 +14,7 @@ import zmq
 from scaler.io.config import DUMMY_CLIENT
 from scaler.io.sync_connector import SyncConnector
 from scaler.io.utility import chunk_to_list_of_bytes
-from scaler.protocol.python.common import ObjectContent, TaskStatus
+from scaler.protocol.python.common import ObjectContent, TaskResultType
 from scaler.protocol.python.message import (
     ObjectInstruction,
     ObjectRequest,
@@ -190,7 +190,7 @@ class Processor(multiprocessing.get_context("spawn").Process):  # type: ignore
         self.__send_result(
             task.source,
             task.task_id,
-            TaskStatus.Failed,
+            TaskResultType.Failed,
             serialize_failure(MissingObjects(",".join([obj.hex() for obj in unknown_object_ids]))),
         )
 
@@ -228,14 +228,14 @@ class Processor(multiprocessing.get_context("spawn").Process):  # type: ignore
                 result = function_with_logger(*args)
 
             result_bytes = self._object_cache.serialize(task.source, result)
-            status = TaskStatus.Success
+            task_result_type = TaskResultType.Success
 
         except Exception as e:
             logging.exception(f"exception when processing task_id={task.task_id.hex()}:")
-            status = TaskStatus.Failed
+            task_result_type = TaskResultType.Failed
             result_bytes = serialize_failure(e)
 
-        self.__send_result(task.source, task.task_id, status, result_bytes)
+        self.__send_result(task.source, task.task_id, task_result_type, result_bytes)
 
     def __get_object_with_client_logger(self, client: bytes, fn: Callable) -> Callable:
         assert self is not None
@@ -264,7 +264,7 @@ class Processor(multiprocessing.get_context("spawn").Process):  # type: ignore
         # self._client_to_decorator[client] = wrap
         # return wrap(fn)
 
-    def __send_result(self, source: bytes, task_id: bytes, status: TaskStatus, result_bytes: bytes):
+    def __send_result(self, source: bytes, task_id: bytes, task_result_type: TaskResultType, result_bytes: bytes):
         self._current_task = None
 
         # use uuid to avoid object_id collision, each result object_id is unique, even it's the same object across
@@ -282,7 +282,7 @@ class Processor(multiprocessing.get_context("spawn").Process):  # type: ignore
                 ),
             )
         )
-        self._connector.send(TaskResult.new_msg(task_id, status, metadata=b"", results=[result_object_id]))
+        self._connector.send(TaskResult.new_msg(task_id, task_result_type, metadata=b"", results=[result_object_id]))
 
     @staticmethod
     def __set_current_processor(context: Optional["Processor"]) -> Token:

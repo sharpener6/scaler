@@ -49,11 +49,10 @@ class AsyncPriorityQueue(Queue):
         item[0] = self.__to_lower_priority(item[0])
         heapq._siftdown(self._queue, 0, i)  # type: ignore[attr-defined]
 
-    def max_priority(self):
+    def max_priority_item(self):
         item = heapq.heappop(self._queue)
         heapq.heappush(self._queue, item)
-        priority = item[0]
-        return priority
+        return item[0], item[1]
 
     @classmethod
     def __to_lowest_priority(cls, original_priority: PriorityType) -> PriorityType:

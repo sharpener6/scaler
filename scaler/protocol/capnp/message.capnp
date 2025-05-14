@@ -24,7 +24,6 @@ struct Task {
 struct TaskCancel {
     struct TaskCancelFlags {
         force @0 :Bool;
-        retrieveTaskObject @1 :Bool;
     }
 
     taskId @0 :Data;
@@ -33,9 +32,19 @@ struct TaskCancel {
 
 struct TaskResult {
     taskId @0 :Data;
-    status @1 :CommonType.TaskStatus;
+    resultType @1 :CommonType.TaskResultType;
     metadata @2 :Data;
     results @3 :List(Data);
+}
+
+struct TaskCancelConfirm {
+    taskId @0 :Data;
+    cancelConfirmType @1 :CommonType.TaskCancelConfirmType;
+
+    union {
+        noTask @2 :Void;
+        task @3 :Task;
+    }
 }
 
 struct GraphTask {
@@ -60,10 +69,11 @@ struct ClientHeartbeatEcho {
 struct WorkerHeartbeat {
     agent @0 :Status.Resource;
     rssFree @1 :UInt64;
-    queuedTasks @2 :UInt32;
-    latencyUS @3 :UInt32;
-    taskLock @4 :Bool;
-    processors @5 :List(Status.ProcessorStatus);
+    queueSize @2 :UInt32;
+    queuedTasks @3 :UInt32;
+    latencyUS @4 :UInt32;
+    taskLock @5 :Bool;
+    processors @6 :List(Status.ProcessorStatus);
 }
 
 struct WorkerHeartbeatEcho {
@@ -150,7 +160,7 @@ struct StateWorker {
 struct StateTask {
     taskId @0 :Data;
     functionName @1 :Data;
-    status @2 :CommonType.TaskStatus;
+    state @2 :CommonType.TaskState;
     worker @3 :Data;
     metadata @4 :Data;
 }
@@ -170,40 +180,52 @@ struct StateGraphTask {
 struct ProcessorInitialized {
 }
 
+struct InformationRequest {
+    request @0 :Data;
+}
+
+struct InformationResponse {
+    response @0 :Data;
+}
+
 
 struct Message {
     union {
         task @0 :Task;
         taskCancel @1 :TaskCancel;
-        taskResult @2 :TaskResult;
+        taskCancelConfirm @2 :TaskCancelConfirm;
+        taskResult @3 :TaskResult;
 
-        graphTask @3 :GraphTask;
-        graphTaskCancel @4 :GraphTaskCancel;
+        graphTask @4 :GraphTask;
+        graphTaskCancel @5 :GraphTaskCancel;
 
-        objectInstruction @5 :ObjectInstruction;
-        objectRequest @6 :ObjectRequest;
-        objectResponse @7 :ObjectResponse;
+        objectInstruction @6 :ObjectInstruction;
+        objectRequest @7 :ObjectRequest;
+        objectResponse @8 :ObjectResponse;
 
-        clientHeartbeat @8 :ClientHeartbeat;
-        clientHeartbeatEcho @9 :ClientHeartbeatEcho;
+        clientHeartbeat @9 :ClientHeartbeat;
+        clientHeartbeatEcho @10 :ClientHeartbeatEcho;
 
-        workerHeartbeat @10 :WorkerHeartbeat;
-        workerHeartbeatEcho @11 :WorkerHeartbeatEcho;
+        workerHeartbeat @11 :WorkerHeartbeat;
+        workerHeartbeatEcho @12 :WorkerHeartbeatEcho;
 
-        disconnectRequest @12 :DisconnectRequest;
-        disconnectResponse @13 :DisconnectResponse;
+        disconnectRequest @13 :DisconnectRequest;
+        disconnectResponse @14 :DisconnectResponse;
 
-        stateClient @14 :StateClient;
-        stateObject @15 :StateObject;
-        stateBalanceAdvice @16 :StateBalanceAdvice;
-        stateScheduler @17 :StateScheduler;
-        stateWorker @18 :StateWorker;
-        stateTask @19 :StateTask;
-        stateGraphTask @20 :StateGraphTask;
+        stateClient @15 :StateClient;
+        stateObject @16 :StateObject;
+        stateBalanceAdvice @17 :StateBalanceAdvice;
+        stateScheduler @18 :StateScheduler;
+        stateWorker @19 :StateWorker;
+        stateTask @20 :StateTask;
+        stateGraphTask @21 :StateGraphTask;
 
-        clientDisconnect @21 :ClientDisconnect;
-        clientShutdownResponse @22 :ClientShutdownResponse;
+        clientDisconnect @22 :ClientDisconnect;
+        clientShutdownResponse @23 :ClientShutdownResponse;
 
-        processorInitialized @23 :ProcessorInitialized;
+        processorInitialized @24 :ProcessorInitialized;
+
+        informationRequest @25 :InformationRequest;
+        informationResponse @26 :InformationResponse;
     }
 }

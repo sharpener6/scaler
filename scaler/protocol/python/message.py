@@ -6,7 +6,7 @@ from typing import List, Optional, Set, Tuple, Type
 import bidict
 
 from scaler.protocol.capnp._python import _message  # noqa
-from scaler.protocol.python.common import ObjectContent, TaskStatus
+from scaler.protocol.python.common import ObjectContent, TaskResultType, TaskCancelConfirmType, TaskState
 from scaler.protocol.python.mixins import Message
 from scaler.protocol.python.status import (
     BinderStatus,
@@ -86,7 +86,6 @@ class TaskCancel(Message):
     @dataclasses.dataclass
     class TaskCancelFlags:
         force: bool
-        retrieve_task_object: bool
 
     @property
     def task_id(self) -> bytes:
@@ -94,22 +93,15 @@ class TaskCancel(Message):
 
     @property
     def flags(self) -> TaskCancelFlags:
-        return TaskCancel.TaskCancelFlags(
-            force=self._msg.flags.force, retrieve_task_object=self._msg.flags.retrieveTaskObject
-        )
+        return TaskCancel.TaskCancelFlags(force=self._msg.flags.force)
 
     @staticmethod
     def new_msg(task_id: bytes, flags: Optional[TaskCancelFlags] = None) -> "TaskCancel":
         if flags is None:
-            flags = TaskCancel.TaskCancelFlags(force=False, retrieve_task_object=False)
+            flags = TaskCancel.TaskCancelFlags(force=False)
 
         return TaskCancel(
-            _message.TaskCancel(
-                taskId=task_id,
-                flags=_message.TaskCancel.TaskCancelFlags(
-                    force=flags.force, retrieveTaskObject=flags.retrieve_task_object
-                ),
-            )
+            _message.TaskCancel(taskId=task_id, flags=_message.TaskCancel.TaskCancelFlags(force=flags.force))
         )
 
 
@@ -122,8 +114,8 @@ class TaskResult(Message):
         return self._msg.taskId
 
     @property
-    def status(self) -> TaskStatus:
-        return TaskStatus(self._msg.status.raw)
+    def result_type(self) -> TaskResultType:
+        return TaskResultType(self._msg.resultType.raw)
 
     @property
     def metadata(self) -> bytes:
@@ -135,7 +127,10 @@ class TaskResult(Message):
 
     @staticmethod
     def new_msg(
-        task_id: bytes, status: TaskStatus, metadata: Optional[bytes] = None, results: Optional[List[bytes]] = None
+        task_id: bytes,
+        result_type: TaskResultType,
+        metadata: Optional[bytes] = None,
+        results: Optional[List[bytes]] = None,
     ) -> "TaskResult":
         if metadata is None:
             metadata = bytes()
@@ -143,7 +138,41 @@ class TaskResult(Message):
         if results is None:
             results = list()
 
-        return TaskResult(_message.TaskResult(taskId=task_id, status=status.value, metadata=metadata, results=results))
+        return TaskResult(
+            _message.TaskResult(taskId=task_id, resultType=result_type.value, metadata=metadata, results=results)
+        )
+
+
+class TaskCancelConfirm(Message):
+    def __init__(self, msg):
+        super().__init__(msg)
+
+    @property
+    def task_id(self) -> bytes:
+        return self._msg.taskId
+
+    @property
+    def cancel_confirm_type(self) -> TaskCancelConfirmType:
+        return TaskCancelConfirmType(self._msg.cancelConfirmType.raw)
+
+    @property
+    def task(self) -> Optional[Task]:
+        task_payload = getattr(self._msg, self._msg.which())
+        if task_payload is None:
+            return task_payload
+
+        return Task(task_payload)
+
+    @staticmethod
+    def new_msg(
+        task_id: bytes, cancel_confirm_type: TaskCancelConfirmType, task: Optional[Task]
+    ) -> "TaskCancelConfirm":
+        if task is None:
+            parameters = dict(taskId=task_id, cancelConfirmType=cancel_confirm_type.value, noTask=None)
+        else:
+            parameters = dict(taskId=task_id, cancelConfirmType=cancel_confirm_type.value, task=task._msg)
+
+        return TaskCancelConfirm(_message.TaskCancelConfirm(**parameters))
 
 
 class GraphTask(Message):
@@ -241,6 +270,10 @@ class WorkerHeartbeat(Message):
         return self._msg.rssFree
 
     @property
+    def queue_size(self) -> int:
+        return self._msg.queueSize
+
+    @property
     def queued_tasks(self) -> int:
         return self._msg.queuedTasks
 
@@ -260,6 +293,7 @@ class WorkerHeartbeat(Message):
     def new_msg(
         agent: Resource,
         rss_free: int,
+        queue_size: int,
         queued_tasks: int,
         latency_us: int,
         task_lock: bool,
@@ -269,6 +303,7 @@ class WorkerHeartbeat(Message):
             _message.WorkerHeartbeat(
                 agent=agent.get_message(),
                 rssFree=rss_free,
+                queueSize=queue_size,
                 queuedTasks=queued_tasks,
                 latencyUS=latency_us,
                 taskLock=task_lock,
@@ -546,8 +581,8 @@ class StateTask(Message):
         return self._msg.functionName
 
     @property
-    def status(self) -> TaskStatus:
-        return TaskStatus(self._msg.status.raw)
+    def state(self) -> TaskState:
+        return TaskState(self._msg.state.raw)
 
     @property
     def worker(self) -> bytes:
@@ -559,11 +594,11 @@ class StateTask(Message):
 
     @staticmethod
     def new_msg(
-        task_id: bytes, function_name: bytes, status: TaskStatus, worker: bytes, metadata: bytes = b""
+        task_id: bytes, function_name: bytes, task_state: TaskState, worker: bytes, metadata: bytes = b""
     ) -> "StateTask":
         return StateTask(
             _message.StateTask(
-                taskId=task_id, functionName=function_name, status=status.value, worker=worker, metadata=metadata
+                taskId=task_id, functionName=function_name, state=task_state.value, worker=worker, metadata=metadata
             )
         )
 
@@ -615,10 +650,29 @@ class ProcessorInitialized(Message):
         return ProcessorInitialized(_message.ProcessorInitialized())
 
 
+class InformationRequest(Message):
+    def __init__(self, msg):
+        super().__init__(msg)
+
+    @staticmethod
+    def new_msg(request: bytes) -> "InformationRequest":
+        return InformationRequest(_message.InformationRequest(request=request))
+
+
+class InformationResponse(Message):
+    def __init__(self, msg):
+        super().__init__(msg)
+
+    @staticmethod
+    def new_msg(response: bytes) -> "InformationResponse":
+        return InformationResponse(_message.InformationResponse(response=response))
+
+
 PROTOCOL: bidict.bidict[str, Type[Message]] = bidict.bidict(
     {
         "task": Task,
         "taskCancel": TaskCancel,
+        "taskCancelConfirm": TaskCancelConfirm,
         "taskResult": TaskResult,
         "graphTask": GraphTask,
         "graphTaskCancel": GraphTaskCancel,
@@ -641,5 +695,7 @@ PROTOCOL: bidict.bidict[str, Type[Message]] = bidict.bidict(
         "clientDisconnect": ClientDisconnect,
         "clientShutdownResponse": ClientShutdownResponse,
         "processorInitialized": ProcessorInitialized,
+        "informationRequest": InformationRequest,
+        "informationResponse": InformationResponse,
     }
 )

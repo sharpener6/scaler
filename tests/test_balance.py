@@ -31,7 +31,7 @@ class TestBalance(unittest.TestCase):
         combo = SchedulerClusterCombo(
             address=address,
             n_workers=1,
-            per_worker_queue_size=N_TASKS,
+            per_worker_task_queue_size=N_TASKS,
             load_balance_seconds=1,  # FIXME: re-enable balancing as it's currently disabled by default
         )
 
@@ -45,6 +45,7 @@ class TestBalance(unittest.TestCase):
             address=combo._cluster._address,
             worker_io_threads=1,
             worker_names=[str(i) for i in range(0, N_WORKERS - 1)],
+            per_worker_task_queue_size=combo._cluster._per_worker_task_queue_size,
             heartbeat_interval_seconds=combo._cluster._heartbeat_interval_seconds,
             task_timeout_seconds=combo._cluster._task_timeout_seconds,
             death_timeout_seconds=combo._cluster._death_timeout_seconds,

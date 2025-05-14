@@ -8,13 +8,16 @@ from scaler.protocol.python.message import (
     DisconnectRequest,
     GraphTask,
     GraphTaskCancel,
+    InformationRequest,
     ObjectInstruction,
     ObjectRequest,
     Task,
     TaskCancel,
     TaskResult,
     WorkerHeartbeat,
+    TaskCancelConfirm,
 )
+from scaler.scheduler.task.task_state_machine import TaskFlags
 from scaler.utility.mixins import Reporter
 
 
@@ -98,7 +101,11 @@ class GraphTaskManager(Reporter):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_graph_sub_task_done(self, result: TaskResult) -> bool:
+    async def on_graph_sub_task_cancel_confirm(self, task_cancel_confirm: TaskCancelConfirm):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    async def on_graph_sub_task_result(self, result: TaskResult) -> bool:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -108,7 +115,11 @@ class GraphTaskManager(Reporter):
 
 class TaskManager(Reporter):
     @abc.abstractmethod
-    async def on_task_new(self, client: bytes, task: Task):
+    def add_task_flag(self, task_id: bytes, flag: TaskFlags):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    async def on_task_new(self, task: Task):
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -116,25 +127,33 @@ class TaskManager(Reporter):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_task_done(self, result: TaskResult):
+    async def on_task_balance_cancel(self, task_id: bytes):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_task_reroute(self, task_id: bytes):
+    async def on_task_cancel_confirm(self, task_cancel_confirm: TaskCancelConfirm):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    async def on_task_result(self, result: TaskResult):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    async def on_worker_disconnect(self, task_id: bytes, worker_id: bytes):
         raise NotImplementedError()
 
 
 class WorkerManager(Reporter):
     @abc.abstractmethod
-    async def assign_task_to_worker(self, task: Task) -> bool:
+    async def assign_task_to_worker(self, task: bytes) -> Optional[bytes]:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_task_cancel(self, task_cancel: TaskCancel):
+    async def on_task_cancel(self, task_cancel: TaskCancel) -> bytes:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_task_result(self, task_result: TaskResult):
+    async def on_task_done(self, task_id: bytes):
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -159,4 +178,10 @@ class WorkerManager(Reporter):
 
     @abc.abstractmethod
     def get_worker_ids(self) -> Set[bytes]:
+        raise NotImplementedError()
+
+
+class InformationManager(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    async def on_request(self, request: InformationRequest):
         raise NotImplementedError()

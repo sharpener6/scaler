@@ -10,13 +10,14 @@ from bidict import bidict
 from scaler import Serializer
 from scaler.io.async_connector import AsyncConnector
 from scaler.io.utility import chunk_to_list_of_bytes, concat_list_of_bytes
-from scaler.protocol.python.common import ObjectContent, TaskStatus
+from scaler.protocol.python.common import ObjectContent, TaskCancelConfirmType, TaskResultType
 from scaler.protocol.python.message import (
     ObjectInstruction,
     ObjectRequest,
     ObjectResponse,
     Task,
     TaskCancel,
+    TaskCancelConfirm,
     TaskResult,
 )
 from scaler.utility.metadata.task_flags import retrieve_task_flags_from_task
@@ -134,9 +135,20 @@ class SymphonyTaskManager(Looper, TaskManager):
         task_queued = task_cancel.task_id in self._queued_task_ids
         task_processing = task_cancel.task_id in self._processing_task_ids
 
-        if (not task_queued and not task_processing) or (task_processing and not task_cancel.flags.force):
-            result = TaskResult.new_msg(task_cancel.task_id, TaskStatus.NotFound)
-            await self._connector_external.send(result)
+        if not task_queued and not task_processing:
+            await self._connector_external.send(
+                TaskCancelConfirm.new_msg(
+                    task_id=task_cancel.task_id, cancel_confirm_type=TaskCancelConfirmType.CancelNotFound, task=None
+                )
+            )
+            return
+
+        if task_processing and not task_cancel.flags.force:
+            await self._connector_external.send(
+                TaskCancelConfirm.new_msg(
+                    task_id=task_cancel.task_id, cancel_confirm_type=TaskCancelConfirmType.CancelFailed, task=None
+                )
+            )
             return
 
         canceled_task = self._task_id_to_task[task_cancel.task_id]
@@ -156,9 +168,8 @@ class SymphonyTaskManager(Looper, TaskManager):
             self._processing_task_ids.remove(task_cancel.task_id)
             self._canceled_task_ids.add(task_cancel.task_id)
 
-        payload = [canceled_task.get_message().to_bytes()] if task_cancel.flags.retrieve_task_object else []
-        result = TaskResult.new_msg(
-            task_id=task_cancel.task_id, status=TaskStatus.Canceled, metadata=b"", results=payload
+        result = TaskCancelConfirm.new_msg(
+            task_id=task_cancel.task_id, cancel_confirm_type=TaskCancelConfirmType.Canceled, task=canceled_task
         )
         await self._connector_external.send(result)
 
@@ -195,10 +206,10 @@ class SymphonyTaskManager(Looper, TaskManager):
                     serializer = self._serializers[serializer_id]
 
                     result_bytes = serializer.serialize(future.result())
-                    status = TaskStatus.Success
+                    status = TaskResultType.Success
                 else:
                     result_bytes = serialize_failure(cast(Exception, future.exception()))
-                    status = TaskStatus.Failed
+                    status = TaskResultType.Failed
 
                 result_object_id = generate_object_id(task.source, uuid.uuid4().bytes)
                 await self._connector_external.send(

@@ -1,18 +1,45 @@
 @0xf57f79ac88fab620;
 
-enum TaskStatus {
-    # task is accepted by scheduler, but will have below status
-    success @0;     # if submit and task is done and get result
-    failed @1;      # if submit and task is failed on worker
-    canceled @2;    # if submit and task is canceled
-    notFound @3;    # if submit and task is not found in scheduler
-    workerDied @4;  # if submit and worker died (only happened when scheduler keep_task=False)
-    noWorker @5;    # if submit and scheduler is full (not implemented yet)
+enum TaskResultType {
+    success @0;           # if submit and task is done and get result
+    failed @1;            # if submit and task is failed on worker
+    failedWorkerDied @2;  # if submit and worker died (only happened when scheduler keep_task=False)
+}
 
-    # below are only used for monitoring channel, not sent to client
-    inactive @6;    # task is scheduled but not allocate to worker
-    running @7;     # task is running in worker
-    canceling @8;   # task is canceling (can be in Inactive or Running state)
+enum TaskCancelConfirmType {
+    canceled @0;               # if cancel success
+    cancelFailed @1;           # if cancel failed, this might happened if the task is in process
+    cancelNotFound @2;         # if cancel cannot find such task
+}
+
+enum TaskTransition {
+    task @0;
+    hasCapacity @1;
+    taskResultSuccess @2;
+    taskResultFailed @3;
+    taskResultWorkerDied @4;
+    taskCancel @5;
+    taskCancelConfirmCanceled @6;
+    taskCancelConfirmFailed @7;
+    taskCancelConfirmNotFound @8;
+    balanceTaskCancel @9;
+    workerDisconnect @10;
+    schedulerHasTask @11;
+    schedulerHasNoTask @12;
+}
+
+enum TaskState {
+    inactive @0;
+    running @1;
+    canceling @2;
+    balanceCanceling @3;
+    success @4;
+    failed @5;
+    failedWorkerDied @6;
+    canceled @7;
+    canceledNotFound @8;
+    balanceCanceled @9;
+    workerDisconnecting @10;
 }
 
 struct ObjectContent {

@@ -2,9 +2,9 @@ import abc
 from typing import Dict, List, Optional, Set
 
 
-class TaskAllocator(metaclass=abc.ABCMeta):
+class TaskAllocatePolicy(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    async def add_worker(self, worker: bytes) -> bool:
+    async def add_worker(self, worker: bytes, queue_size: int) -> bool:
         """add worker to worker collection"""
         raise NotImplementedError()
 

@@ -33,6 +33,12 @@ def register_event_loop(event_loop_type: str):
 
 def create_async_loop_routine(routine: Callable[[], Awaitable], seconds: int):
     async def loop():
+        if seconds < 0:
+            logging.info(
+                f"{routine.__self__.__class__.__name__}: skipped as interval={seconds}"  # type: ignore[attr-defined]
+            )
+            return
+
         logging.info(f"{routine.__self__.__class__.__name__}: started")  # type: ignore[attr-defined]
         try:
             while True:

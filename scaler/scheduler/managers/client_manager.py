@@ -12,7 +12,7 @@ from scaler.protocol.python.message import (
     TaskCancel,
 )
 from scaler.protocol.python.status import ClientManagerStatus
-from scaler.scheduler.mixins import ClientManager, ObjectManager, TaskManager, WorkerManager
+from scaler.scheduler.managers.mixins import ClientManager, ObjectManager, WorkerManager, TaskManager
 from scaler.utility.exceptions import ClientShutdownException
 from scaler.utility.mixins import Looper, Reporter
 from scaler.utility.one_to_many_dict import OneToManyDict
@@ -113,10 +113,10 @@ class VanillaClientManager(ClientManager, Looper, Reporter):
         if client_id in self._client_last_seen:
             self._client_last_seen.pop(client_id)
 
-        await self.__cancel_tasks(client_id)
+        await self.__cancel_client_all_tasks(client_id)
         self._object_manager.clean_client(client_id)
 
-    async def __cancel_tasks(self, client: bytes):
+    async def __cancel_client_all_tasks(self, client: bytes):
         if client not in self._client_to_task_ids.keys():
             return
 

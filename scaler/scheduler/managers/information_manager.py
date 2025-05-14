@@ -4,13 +4,19 @@ import psutil
 
 from scaler.io.async_binder import AsyncBinder
 from scaler.io.async_connector import AsyncConnector
-from scaler.protocol.python.message import StateScheduler
+from scaler.protocol.python.message import InformationRequest, StateScheduler
 from scaler.protocol.python.status import Resource
-from scaler.scheduler.mixins import ClientManager, ObjectManager, TaskManager, WorkerManager
+from scaler.scheduler.managers.mixins import (
+    ClientManager,
+    InformationManager,
+    ObjectManager,
+    TaskManager,
+    WorkerManager,
+)
 from scaler.utility.mixins import Looper
 
 
-class StatusReporter(Looper):
+class VanillaInformationManager(Looper, InformationManager):
     def __init__(self, binder: AsyncConnector):
         self._monitor_binder: AsyncConnector = binder
         self._process = psutil.Process()
@@ -34,6 +40,9 @@ class StatusReporter(Looper):
         self._object_manager = object_manager
         self._task_manager = task_manager
         self._worker_manager = worker_manager
+
+    async def on_request(self, request: InformationRequest):
+        raise NotImplementedError()
 
     async def routine(self):
         await self._monitor_binder.send(
