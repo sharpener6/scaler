@@ -37,6 +37,7 @@ class Worker(multiprocessing.get_context("spawn").Process):  # type: ignore
         name: str,
         address: ZMQConfig,
         io_threads: int,
+        task_queue_size: int,
         heartbeat_interval_seconds: int,
         garbage_collect_interval_seconds: int,
         trim_memory_threshold_bytes: int,
@@ -53,6 +54,7 @@ class Worker(multiprocessing.get_context("spawn").Process):  # type: ignore
         self._address = address
         self._io_threads = io_threads
 
+        self._task_queue_size = task_queue_size
         self._heartbeat_interval_seconds = heartbeat_interval_seconds
         self._garbage_collect_interval_seconds = garbage_collect_interval_seconds
         self._trim_memory_threshold_bytes = trim_memory_threshold_bytes
@@ -93,7 +95,7 @@ class Worker(multiprocessing.get_context("spawn").Process):  # type: ignore
             identity=None,
         )
 
-        self._heartbeat_manager = VanillaHeartbeatManager()
+        self._heartbeat_manager = VanillaHeartbeatManager(task_queue_size=self._task_queue_size)
         self._profiling_manager = VanillaProfilingManager()
         self._task_manager = VanillaTaskManager(task_timeout_seconds=self._task_timeout_seconds)
         self._timeout_manager = VanillaTimeoutManager(death_timeout_seconds=self._death_timeout_seconds)
