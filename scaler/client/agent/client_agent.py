@@ -24,6 +24,7 @@ from scaler.protocol.python.message import (
     Task,
     TaskCancel,
     TaskResult,
+    TaskCancelConfirm,
 )
 from scaler.protocol.python.mixins import Message
 from scaler.utility.event_loop import create_async_loop_routine
@@ -155,6 +156,10 @@ class ClientAgent(threading.Thread):
             await self._task_manager.on_task_result(message)
             return
 
+        if isinstance(message, TaskCancelConfirm):
+            await self._task_manager.on_task_cancel_confirm(message)
+            return
+
         if isinstance(message, ObjectResponse):
             self._future_manager.on_object_response(message)
             return
@@ -164,13 +169,15 @@ class ClientAgent(threading.Thread):
     async def __get_loops(self):
         await self._heartbeat_manager.send_heartbeat()
 
+        loops = await asyncio.gather(
+            create_async_loop_routine(self._connector_external.routine, 0),
+            create_async_loop_routine(self._connector_internal.routine, 0),
+            create_async_loop_routine(self._heartbeat_manager.routine, self._heartbeat_interval_seconds),
+        )
+
         exception = None
         try:
-            await asyncio.gather(
-                create_async_loop_routine(self._connector_external.routine, 0),
-                create_async_loop_routine(self._connector_internal.routine, 0),
-                create_async_loop_routine(self._heartbeat_manager.routine, self._heartbeat_interval_seconds),
-            )
+            await asyncio.gather(*loops)
         except BaseException as e:
             exception = e
         finally:
