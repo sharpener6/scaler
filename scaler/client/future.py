@@ -139,6 +139,16 @@ class ScalerFuture(Future):
             else:
                 self._connector.send(TaskCancel.new_msg(self._task_id))
 
+        return True
+
+    def set_canceled(self):
+        with self._condition:
+            if self.cancelled():
+                return
+
+            if self.done():
+                return
+
             self._state = "CANCELLED"
             self._result_received = True
 
@@ -146,7 +156,6 @@ class ScalerFuture(Future):
             self._condition.notify_all()  # type: ignore[attr-defined]
 
         self._invoke_callbacks()  # type: ignore[attr-defined]
-        return True
 
     def add_done_callback(self, fn: Callable[[Future], Any]) -> None:
         with self._condition:  # type: ignore[attr-defined]
