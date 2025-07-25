@@ -8,7 +8,7 @@ from scaler.io.async_binder import AsyncBinder
 from scaler.io.async_connector import AsyncConnector
 from scaler.protocol.python.common import ObjectContent, TaskStatus
 from scaler.protocol.python.message import GraphTask, GraphTaskCancel, StateGraphTask, Task, TaskCancel, TaskResult
-from scaler.scheduler.mixins import ClientManager, GraphTaskManager, ObjectManager, TaskManager
+from scaler.scheduler.managers.mixins import ClientManager, GraphTaskManager, ObjectManager, TaskManager
 from scaler.utility.graph.topological_sorter import TopologicalSorter
 from scaler.utility.many_to_many_dict import ManyToManyDict
 from scaler.utility.mixins import Looper, Reporter

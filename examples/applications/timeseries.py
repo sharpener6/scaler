@@ -3,12 +3,14 @@ This example uses the Prophet library with Scaler to perform parallelized cross-
 This reveals a ~4x speedup over the non-parallelized version.
 """
 
-import pandas as pd
-from prophet import Prophet
-import prophet.diagnostics
-from timeit import default_timer as timer
 from multiprocessing import cpu_count
-from scaler import SchedulerClusterCombo, Client
+from timeit import default_timer as timer
+
+import pandas as pd
+import prophet.diagnostics
+from prophet import Prophet
+
+from scaler import Client, SchedulerClusterCombo
 
 
 def main():

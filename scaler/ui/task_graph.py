@@ -6,11 +6,17 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from nicegui import ui
 
-from scaler.protocol.python.common import TaskStatus
+from scaler.protocol.python.common import TaskState
 from scaler.protocol.python.message import StateTask
 from scaler.ui.live_display import WorkersSection
 from scaler.ui.setting_page import Settings
-from scaler.ui.utility import format_timediff, format_worker_name, get_bounds, make_tick_text, make_ticks
+from scaler.ui.utility import (
+    format_timediff,
+    format_worker_name,
+    get_bounds,
+    make_tick_text,
+    make_ticks,
+)
 
 
 class TaskColors:
@@ -20,18 +26,19 @@ class TaskColors:
     FAILED = "red"
     UNKNOWN = "lightgray"
     DEADWORKER = NOWORK
-    CANCELED = "purple"
+    CANCELED = "lightgray"
     CANCELING = CANCELED
 
     __task_status_to_color = {
-        TaskStatus.Success: SUCCESS,
-        TaskStatus.Failed: FAILED,
-        TaskStatus.Canceled: CANCELED,
-        TaskStatus.Canceling: CANCELING,
+        TaskState.Inactive: NOWORK,
+        TaskState.Running: ONGOING,
+        TaskState.Success: SUCCESS,
+        TaskState.Canceled: CANCELED,
+        TaskState.Canceling: CANCELING,
     }
 
     @staticmethod
-    def from_status(status: TaskStatus) -> str:
+    def from_status(status: TaskState) -> str:
         return TaskColors.__task_status_to_color[status]
 
 
@@ -163,7 +170,7 @@ class TaskStream:
         if worker == "":
             return
 
-        task_status = state.status
+        task_state = state.state
         self._worker_last_update[worker] = now
 
         _, _, start = self._current_tasks.get(worker, (False, set(), None))
@@ -177,7 +184,7 @@ class TaskStream:
         self.__add_bar(
             worker,
             format_timediff(start, now),
-            TaskColors.from_status(task_status),
+            TaskColors.from_status(task_state),
             self._worker_to_object_name.get(worker, ""),
         )
 
@@ -214,7 +221,7 @@ class TaskStream:
         if start_time:
             self.__add_bar(worker, format_timediff(start_time, now), TaskColors.NOWORK, "")
 
-    def handle_task_state(self, state: StateTask):
+    def handle_task_state(self, state_task: StateTask):
         """
         The scheduler sends out `state.worker` while a Task is running.
         However, as soon as the task is done, that entry is cleared.
@@ -222,15 +229,15 @@ class TaskStream:
         we store this mapping ourselves based on the Running statuses we see.
         """
 
-        task_status = state.status
+        task_state = state_task.state
         now = datetime.datetime.now()
         self._last_task_tick = now
 
-        if task_status in {TaskStatus.Success, TaskStatus.Failed, TaskStatus.Canceling}:
-            self.__handle_task_result(state, now)
+        if task_state in {TaskState.Success, TaskState.Canceling}:
+            self.__handle_task_result(state_task, now)
             return
 
-        if not (worker := state.worker):
+        if not (worker := state_task.worker):
             return
 
         worker_string = worker.decode()
@@ -239,8 +246,8 @@ class TaskStream:
         if worker_string not in self._seen_workers:
             self.__handle_new_worker(worker_string, now)
 
-        if task_status in {TaskStatus.Running}:
-            self.__handle_running_task(state, worker_string, now)
+        if task_state in {TaskState.Running}:
+            self.__handle_running_task(state_task, worker_string, now)
 
     def __add_lost_worker(self, worker: str, now: datetime.datetime):
         self._lost_workers_queue.put((now, worker))
