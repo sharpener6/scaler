@@ -3,6 +3,7 @@ import multiprocessing
 from asyncio import AbstractEventLoop, Task
 from typing import Any, Optional, Tuple
 
+from scaler.scheduler.allocate_policy.allocate_policy import AllocatePolicy
 from scaler.scheduler.config import SchedulerConfig
 from scaler.scheduler.scheduler import Scheduler, scheduler_main
 from scaler.utility.event_loop import register_event_loop
@@ -19,13 +20,14 @@ class SchedulerProcess(multiprocessing.get_context("spawn").Process):  # type: i
         monitor_address: Optional[ZMQConfig],
         io_threads: int,
         max_number_of_tasks_waiting: int,
-        per_worker_queue_size: int,
         client_timeout_seconds: int,
         worker_timeout_seconds: int,
         object_retention_seconds: int,
         load_balance_seconds: int,
         load_balance_trigger_times: int,
         protected: bool,
+        store_tasks: bool,
+        allocate_policy: AllocatePolicy,
         event_loop: str,
         logging_path: Tuple[str, ...],
         logging_config_file: Optional[str],
@@ -38,13 +40,14 @@ class SchedulerProcess(multiprocessing.get_context("spawn").Process):  # type: i
             monitor_address=monitor_address,
             io_threads=io_threads,
             max_number_of_tasks_waiting=max_number_of_tasks_waiting,
-            per_worker_queue_size=per_worker_queue_size,
             client_timeout_seconds=client_timeout_seconds,
             worker_timeout_seconds=worker_timeout_seconds,
             object_retention_seconds=object_retention_seconds,
             load_balance_seconds=load_balance_seconds,
             load_balance_trigger_times=load_balance_trigger_times,
             protected=protected,
+            store_tasks=store_tasks,
+            allocate_policy=allocate_policy,
         )
 
         self._logging_path = logging_path
@@ -63,3 +66,13 @@ class SchedulerProcess(multiprocessing.get_context("spawn").Process):  # type: i
         self._task = self._loop.create_task(scheduler_main(self._scheduler_config))
 
         self._loop.run_until_complete(self._task)
+
+    @staticmethod
+    def __register_signal(loop):
+        loop.add_signal_handler(signal.SIGINT, SchedulerProcess.__handle_signal)
+        loop.add_signal_handler(signal.SIGTERM, SchedulerProcess.__handle_signal)
+
+    @staticmethod
+    def __handle_signal():
+        for task in asyncio.all_tasks():
+            task.cancel()

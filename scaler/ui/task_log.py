@@ -5,18 +5,19 @@ from typing import Deque
 
 from nicegui import ui
 
-from scaler.protocol.python.common import TaskStatus
+from scaler.protocol.python.common import TaskState
 from scaler.protocol.python.message import StateTask
 from scaler.utility.formatter import format_bytes
 from scaler.utility.metadata.profile_result import ProfileResult
 
 # TaskStatus values corresponding to completed tasks (some are in-progress e.g. Running)
 COMPLETED_TASK_STATUSES = {
-    TaskStatus.Success,
-    TaskStatus.Failed,
-    TaskStatus.Canceled,
-    TaskStatus.WorkerDied,
-    TaskStatus.NoWorker,
+    TaskState.Success,
+    TaskState.Failed,
+    TaskState.Canceled,
+    TaskState.FailedWorkerDied,
+    TaskState.FailedNoCapacity,
+    TaskState.CanceledNotFound,
 }
 
 
@@ -31,7 +32,7 @@ class TaskData:
     def populate(self, state: StateTask):
         self.task = f"{state.task_id.hex()}"
         self.function = state.function_name.decode()
-        self.status = state.status.name
+        self.status = state.state.name
 
         self.duration = "N/A"
         self.peak_mem = "N/A"
@@ -43,7 +44,7 @@ class TaskData:
             self.peak_mem = format_bytes(mem) if mem != 0 else "0"
 
     def draw_row(self):
-        color = "color: green" if self.status == "Success" else "color: red"
+        color = "color: green" if self.status == "Finished" else "color: red"
         ui.label(self.task)
         ui.label(self.function)
         ui.label(self.duration)
@@ -65,7 +66,7 @@ class TaskLogTable:
         self._lock = Lock()
 
     def handle_task_state(self, state: StateTask):
-        if state.status not in COMPLETED_TASK_STATUSES:
+        if state not in COMPLETED_TASK_STATUSES:
             return
 
         row = TaskData()

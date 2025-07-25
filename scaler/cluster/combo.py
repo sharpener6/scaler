@@ -21,6 +21,7 @@ from scaler.io.config import (
     DEFAULT_WORKER_DEATH_TIMEOUT,
     DEFAULT_WORKER_TIMEOUT_SECONDS,
 )
+from scaler.scheduler.allocate_policy.allocate_policy import AllocatePolicy
 from scaler.utility.network_util import get_available_tcp_port
 from scaler.utility.object_storage_config import ObjectStorageConfig
 from scaler.utility.zmq_config import ZMQConfig
@@ -46,9 +47,11 @@ class SchedulerClusterCombo:
         load_balance_trigger_times=DEFAULT_LOAD_BALANCE_TRIGGER_TIMES,
         garbage_collect_interval_seconds: int = DEFAULT_GARBAGE_COLLECT_INTERVAL_SECONDS,
         trim_memory_threshold_bytes: int = DEFAULT_TRIM_MEMORY_THRESHOLD_BYTES,
-        per_worker_queue_size: int = DEFAULT_PER_WORKER_QUEUE_SIZE,
+        per_worker_task_queue_size: int = DEFAULT_PER_WORKER_QUEUE_SIZE,
         hard_processor_suspend: bool = DEFAULT_HARD_PROCESSOR_SUSPEND,
         protected: bool = True,
+        store_tasks: bool = False,
+        allocate_policy: AllocatePolicy = AllocatePolicy.even,
         event_loop: str = "builtin",
         logging_paths: Tuple[str, ...] = ("/dev/stdout",),
         logging_level: str = "INFO",
@@ -78,6 +81,7 @@ class SchedulerClusterCombo:
             storage_address=self._storage_address,
             worker_io_threads=worker_io_threads,
             worker_names=[f"{socket.gethostname().split('.')[0]}_{i}" for i in range(n_workers)],
+            per_worker_task_queue_size=per_worker_task_queue_size,
             heartbeat_interval_seconds=heartbeat_interval_seconds,
             task_timeout_seconds=task_timeout_seconds,
             death_timeout_seconds=death_timeout_seconds,
@@ -96,13 +100,14 @@ class SchedulerClusterCombo:
             monitor_address=self._monitor_address,
             io_threads=scheduler_io_threads,
             max_number_of_tasks_waiting=max_number_of_tasks_waiting,
-            per_worker_queue_size=per_worker_queue_size,
             client_timeout_seconds=client_timeout_seconds,
             worker_timeout_seconds=worker_timeout_seconds,
             object_retention_seconds=object_retention_seconds,
             load_balance_seconds=load_balance_seconds,
             load_balance_trigger_times=load_balance_trigger_times,
             protected=protected,
+            store_tasks=store_tasks,
+            allocate_policy=allocate_policy,
             event_loop=event_loop,
             logging_path=logging_paths,
             logging_config_file=logging_config_file,

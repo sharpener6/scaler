@@ -6,8 +6,10 @@ import os
 import sys
 import tempfile
 from multiprocessing import cpu_count
+
 from PIL import Image, UnidentifiedImageError
-from scaler import SchedulerClusterCombo, Client
+
+from scaler import Client, SchedulerClusterCombo
 
 
 def process_image(source: str, dest: str):

@@ -13,7 +13,7 @@ from scaler.protocol.python.message import (
     TaskCancel,
 )
 from scaler.protocol.python.status import ClientManagerStatus
-from scaler.scheduler.mixins import ClientManager, ObjectManager, TaskManager, WorkerManager
+from scaler.scheduler.managers.mixins import ClientManager, ObjectManager, TaskManager, WorkerManager
 from scaler.utility.exceptions import ClientShutdownException
 from scaler.utility.identifiers import ClientID, TaskID
 from scaler.utility.mixins import Looper, Reporter

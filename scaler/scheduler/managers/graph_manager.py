@@ -9,7 +9,7 @@ from scaler.io.async_connector import AsyncConnector
 from scaler.io.async_object_storage_connector import AsyncObjectStorageConnector
 from scaler.protocol.python.common import ObjectMetadata, TaskStatus
 from scaler.protocol.python.message import GraphTask, GraphTaskCancel, StateGraphTask, Task, TaskCancel, TaskResult
-from scaler.scheduler.mixins import ClientManager, GraphTaskManager, ObjectManager, TaskManager
+from scaler.scheduler.managers.mixins import ClientManager, GraphTaskManager, ObjectManager, TaskManager
 from scaler.utility.graph.topological_sorter import TopologicalSorter
 from scaler.utility.identifiers import ClientID, ObjectID, TaskID
 from scaler.utility.many_to_many_dict import ManyToManyDict
