@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from nicegui import ui
 
-from scaler.protocol.python.common import TaskState
+from scaler.protocol.python.common import TaskStatus
 from scaler.protocol.python.message import StateTask
 from scaler.ui.live_display import WorkersSection
 from scaler.ui.setting_page import Settings
@@ -30,15 +30,15 @@ class TaskColors:
     CANCELING = CANCELED
 
     __task_status_to_color = {
-        TaskState.Inactive: NOWORK,
-        TaskState.Running: ONGOING,
-        TaskState.Success: SUCCESS,
-        TaskState.Canceled: CANCELED,
-        TaskState.Canceling: CANCELING,
+        TaskStatus.Inactive: NOWORK,
+        TaskStatus.Running: ONGOING,
+        TaskStatus.Success: SUCCESS,
+        TaskStatus.Canceled: CANCELED,
+        TaskStatus.Canceling: CANCELING,
     }
 
     @staticmethod
-    def from_status(status: TaskState) -> str:
+    def from_status(status: TaskStatus) -> str:
         return TaskColors.__task_status_to_color[status]
 
 
@@ -170,7 +170,7 @@ class TaskStream:
         if worker == "":
             return
 
-        task_state = state.state
+        task_state = state.status
         self._worker_last_update[worker] = now
 
         _, _, start = self._current_tasks.get(worker, (False, set(), None))
@@ -229,11 +229,11 @@ class TaskStream:
         we store this mapping ourselves based on the Running statuses we see.
         """
 
-        task_state = state_task.state
+        task_state = state_task.status
         now = datetime.datetime.now()
         self._last_task_tick = now
 
-        if task_state in {TaskState.Success, TaskState.Canceling}:
+        if task_state in {TaskStatus.Success, TaskStatus.Canceling}:
             self.__handle_task_result(state_task, now)
             return
 
@@ -246,7 +246,7 @@ class TaskStream:
         if worker_string not in self._seen_workers:
             self.__handle_new_worker(worker_string, now)
 
-        if task_state in {TaskState.Running}:
+        if task_state in {TaskStatus.Running}:
             self.__handle_running_task(state_task, worker_string, now)
 
     def __add_lost_worker(self, worker: str, now: datetime.datetime):

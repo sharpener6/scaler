@@ -148,7 +148,7 @@ class Scheduler:
 
         # scheduler receives client shutdown request from upstream
         if isinstance(message, ClientDisconnect):
-            await self._client_manager.on_client_disconnect(source, message)
+            await self._client_manager.on_client_disconnect(ClientID(source), message)
             return
 
         # =====================================================================================

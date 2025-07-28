@@ -11,6 +11,7 @@ from scaler.worker.worker import Worker
 
 
 class Cluster(multiprocessing.get_context("spawn").Process):  # type: ignore[misc]
+
     def __init__(
         self,
         address: ZMQConfig,
@@ -26,8 +27,8 @@ class Cluster(multiprocessing.get_context("spawn").Process):  # type: ignore[mis
         hard_processor_suspend: bool,
         event_loop: str,
         logging_paths: Tuple[str, ...],
-        logging_level: str,
         logging_config_file: Optional[str],
+        logging_level: str,
     ):
         multiprocessing.Process.__init__(self, name="WorkerMaster")
 
@@ -46,8 +47,8 @@ class Cluster(multiprocessing.get_context("spawn").Process):  # type: ignore[mis
         self._event_loop = event_loop
 
         self._logging_paths = logging_paths
-        self._logging_level = logging_level
         self._logging_config_file = logging_config_file
+        self._logging_level = logging_level
 
         self._workers: List[Worker] = []
 

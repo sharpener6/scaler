@@ -72,7 +72,12 @@ class SchedulerClusterCombo:
         else:
             self._monitor_address = ZMQConfig.from_string(monitor_address)
 
-        self._object_storage = ObjectStorageServerProcess(self._storage_address)
+        self._object_storage = ObjectStorageServerProcess(
+            storage_address=self._storage_address,
+            logging_paths=logging_paths,
+            logging_level=logging_level,
+            logging_config_file=logging_config_file,
+        )
         self._object_storage.start()
         self._object_storage.wait_until_ready()  # object storage should be ready before starting the cluster
 
@@ -90,8 +95,8 @@ class SchedulerClusterCombo:
             hard_processor_suspend=hard_processor_suspend,
             event_loop=event_loop,
             logging_paths=logging_paths,
-            logging_level=logging_level,
             logging_config_file=logging_config_file,
+            logging_level=logging_level,
         )
 
         self._scheduler = SchedulerProcess(
@@ -109,8 +114,9 @@ class SchedulerClusterCombo:
             store_tasks=store_tasks,
             allocate_policy=allocate_policy,
             event_loop=event_loop,
-            logging_path=logging_paths,
+            logging_paths=logging_paths,
             logging_config_file=logging_config_file,
+            logging_level=logging_level,
         )
 
         self._cluster.start()

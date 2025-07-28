@@ -153,7 +153,7 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
     def has_available_worker(self) -> bool:
         return self._allocator_policy.has_available_worker()
 
-    def get_worker_by_task_id(self, task_id: TaskID) -> bytes:
+    def get_worker_by_task_id(self, task_id: TaskID) -> WorkerID:
         return self._allocator_policy.get_worker_by_task_id(task_id)
 
     def get_worker_ids(self) -> Set[WorkerID]:

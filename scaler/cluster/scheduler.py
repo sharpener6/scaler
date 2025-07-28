@@ -1,5 +1,6 @@
 import asyncio
 import multiprocessing
+import signal
 from asyncio import AbstractEventLoop, Task
 from typing import Any, Optional, Tuple
 
@@ -29,8 +30,9 @@ class SchedulerProcess(multiprocessing.get_context("spawn").Process):  # type: i
         store_tasks: bool,
         allocate_policy: AllocatePolicy,
         event_loop: str,
-        logging_path: Tuple[str, ...],
+        logging_paths: Tuple[str, ...],
         logging_config_file: Optional[str],
+        logging_level: str,
     ):
         multiprocessing.Process.__init__(self, name="Scheduler")
         self._scheduler_config = SchedulerConfig(
@@ -50,8 +52,9 @@ class SchedulerProcess(multiprocessing.get_context("spawn").Process):  # type: i
             allocate_policy=allocate_policy,
         )
 
-        self._logging_path = logging_path
+        self._logging_paths = logging_paths
         self._logging_config_file = logging_config_file
+        self._logging_level = logging_level
 
         self._scheduler: Optional[Scheduler] = None
         self._loop: Optional[AbstractEventLoop] = None
@@ -59,10 +62,12 @@ class SchedulerProcess(multiprocessing.get_context("spawn").Process):  # type: i
 
     def run(self) -> None:
         # scheduler have its own single process
-        setup_logger(self._logging_path, self._logging_config_file)
+        setup_logger(self._logging_paths, self._logging_config_file, self._logging_level)
         register_event_loop(self._scheduler_config.event_loop)
 
         self._loop = asyncio.get_event_loop()
+        SchedulerProcess.__register_signal(self._loop)
+
         self._task = self._loop.create_task(scheduler_main(self._scheduler_config))
 
         self._loop.run_until_complete(self._task)

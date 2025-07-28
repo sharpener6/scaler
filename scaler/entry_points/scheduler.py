@@ -1,8 +1,7 @@
 import argparse
-import asyncio
-import functools
-import signal
 
+from scaler.cluster.object_storage_server import ObjectStorageServerProcess
+from scaler.cluster.scheduler import SchedulerProcess
 from scaler.io.config import (
     DEFAULT_CLIENT_TIMEOUT_SECONDS,
     DEFAULT_IO_THREADS,
@@ -13,10 +12,8 @@ from scaler.io.config import (
     DEFAULT_WORKER_TIMEOUT_SECONDS,
 )
 from scaler.scheduler.allocate_policy.allocate_policy import AllocatePolicy
-from scaler.scheduler.config import SchedulerConfig
-from scaler.scheduler.scheduler import scheduler_main
-from scaler.utility.event_loop import EventLoopType, register_event_loop
-from scaler.utility.logging.utility import setup_logger
+from scaler.utility.event_loop import EventLoopType
+from scaler.utility.network_util import get_available_tcp_port
 from scaler.utility.object_storage_config import ObjectStorageConfig
 from scaler.utility.zmq_config import ZMQConfig
 
@@ -129,21 +126,30 @@ def get_args():
         "tcp://localhost:2347",
     )
     parser.add_argument(
-        "address",
-        type=ZMQConfig.from_string,
-        help="scheduler address to connect to, e.g.: `tcp://localhost:6378`"
+        "address", type=ZMQConfig.from_string, help="scheduler address to connect to, e.g.: `tcp://localhost:6378`"
     )
     return parser.parse_args()
 
 
 def main():
     args = get_args()
-    setup_logger(args.logging_paths, args.logging_config_file, args.logging_level)
 
-    scheduler_config = SchedulerConfig(
-        event_loop=args.event_loop,
+    if args.object_storage_address is None:
+        object_storage_address = ObjectStorageConfig(args.address.host, get_available_tcp_port())
+        object_storage = ObjectStorageServerProcess(
+            storage_address=object_storage_address,
+            logging_paths=args.logging_paths,
+            logging_config_file=args.logging_config_file,
+            logging_level=args.logging_level,
+        )
+        object_storage.start()
+        object_storage.wait_until_ready()  # object storage should be ready before starting the cluster
+    else:
+        object_storage_address = args.object_storage_address
+
+    scheduler = SchedulerProcess(
         address=args.address,
-        storage_address=args.object_storage_address,
+        storage_address=object_storage_address,
         monitor_address=args.monitor_address,
         io_threads=args.io_threads,
         max_number_of_tasks_waiting=args.max_number_of_tasks_waiting,
@@ -160,19 +166,7 @@ def main():
         logging_config_file=args.logging_config_file,
         logging_level=args.logging_level,
     )
+    scheduler.start()
 
-    register_event_loop(args.event_loop)
-
-    loop = asyncio.get_event_loop()
-    __register_signal(loop)
-    loop.run_until_complete(scheduler_main(scheduler_config))
-
-
-def __register_signal(loop):
-    loop.add_signal_handler(signal.SIGINT, functools.partial(__handle_signal))
-    loop.add_signal_handler(signal.SIGTERM, functools.partial(__handle_signal))
-
-
-def __handle_signal():
-    for task in asyncio.all_tasks():
-        task.cancel()
+    scheduler.join()
+    object_storage.join()

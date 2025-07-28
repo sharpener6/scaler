@@ -44,7 +44,8 @@ class VanillaBalanceManager(Looper):
         for worker, task_ids in current_advice.items():
             for task_id in task_ids:
                 # TODO: fix this in the following PR that does state machine
-                await self._task_manager.on_task_balance_cancel(task_id)
+                # await self._task_manager.on_task_balance_cancel(task_id)
+                pass
 
     def __should_balance(self, current_advice: Dict[WorkerID, List[TaskID]]) -> bool:
         # 1. if this is the same advise as last time, then we +1 on same advice count
