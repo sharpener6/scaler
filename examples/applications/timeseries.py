@@ -20,7 +20,7 @@ def main():
         # Load the data
         df = pd.read_csv(
             "https://raw.githubusercontent.com/facebook/prophet/master/examples/example_wp_log_peyton_manning.csv",
-            parse_dates=["ds"]
+            parse_dates=["ds"],
         )
 
         model = Prophet(daily_seasonality=False)
@@ -39,22 +39,14 @@ def main():
         # non-parallelized cross-validation
         start = timer()
         prophet.diagnostics.cross_validation(
-            model,
-            initial="730 days",
-            period="180 days",
-            horizon="365 days",
-            parallel=None
+            model, initial="730 days", period="180 days", horizon="365 days", parallel=None
         )
         non_parallel_time = timer() - start
 
         # Parallelized cross-validation via Scaler
         start = timer()
         prophet.diagnostics.cross_validation(
-            model,
-            initial="730 days",
-            period="180 days",
-            horizon="365 days",
-            parallel=Adapter(client)
+            model, initial="730 days", period="180 days", horizon="365 days", parallel=Adapter(client)
         )
         parallel_time = timer() - start
 

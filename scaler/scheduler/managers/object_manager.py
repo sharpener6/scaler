@@ -64,9 +64,7 @@ class VanillaObjectManager(ObjectManager, Looper, Reporter):
             self.on_del_objects(instruction.object_user, set(instruction.object_metadata.object_ids))
             return
 
-        logging.error(
-            f"received unknown object instruction_type={instruction.instruction_type} from {source=}"
-        )
+        logging.error(f"received unknown object instruction_type={instruction.instruction_type} from {source=}")
 
     def on_add_object(
         self,

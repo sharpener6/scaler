@@ -10,13 +10,7 @@ from scaler.protocol.python.common import TaskStatus
 from scaler.protocol.python.message import StateTask
 from scaler.ui.live_display import WorkersSection
 from scaler.ui.setting_page import Settings
-from scaler.ui.utility import (
-    format_timediff,
-    format_worker_name,
-    get_bounds,
-    make_tick_text,
-    make_ticks,
-)
+from scaler.ui.utility import format_timediff, format_worker_name, get_bounds, make_tick_text, make_ticks
 
 
 class TaskColors:

@@ -27,7 +27,9 @@ UINT8_MAX = 2**8 - 1
 
 
 class VanillaWorkerManager(WorkerManager, Looper, Reporter):
-    def __init__(self, timeout_seconds: int, task_allocate_policy: TaskAllocatePolicy, storage_address: ObjectStorageAddress):
+    def __init__(
+        self, timeout_seconds: int, task_allocate_policy: TaskAllocatePolicy, storage_address: ObjectStorageAddress
+    ):
         self._timeout_seconds = timeout_seconds
         self._storage_address = storage_address
 
@@ -89,10 +91,7 @@ class VanillaWorkerManager(WorkerManager, Looper, Reporter):
             await self._binder_monitor.send(StateWorker.new_msg(worker_id, b"connected"))
 
         self._worker_alive_since[worker_id] = (time.time(), info)
-        await self._binder.send(
-            worker_id,
-            WorkerHeartbeatEcho.new_msg(object_storage_address=self._storage_address)
-        )
+        await self._binder.send(worker_id, WorkerHeartbeatEcho.new_msg(object_storage_address=self._storage_address))
 
     async def on_client_shutdown(self, client_id: ClientID):
         for worker in self._allocator_policy.get_worker_ids():
