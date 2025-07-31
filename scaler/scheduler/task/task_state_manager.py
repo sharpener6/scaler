@@ -12,13 +12,14 @@ class TaskStateManager:
         self._task_id_to_state_machine: Dict[TaskID, TaskStateMachine] = dict()
         self._statistics: Dict[TaskState, int] = {state: 0 for state in TaskState}
 
-    def add_state_machine(self, task_id: TaskID):
+    def add_state_machine(self, task_id: TaskID) -> TaskStateMachine:
         """Create new task state machine, return True if success, False otherwise"""
         assert task_id not in self._task_id_to_state_machine
 
         state_machine = TaskStateMachine(self._debug)
         self._task_id_to_state_machine[task_id] = state_machine
         self._statistics[state_machine.current_state()] += 1
+        return state_machine
 
     def remove_state_machine(self, task_id: TaskID):
         self._task_id_to_state_machine.pop(task_id)

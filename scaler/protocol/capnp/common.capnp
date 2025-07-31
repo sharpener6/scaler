@@ -13,19 +13,18 @@ enum TaskCancelConfirmType {
 }
 
 enum TaskTransition {
-    task @0;
-    hasCapacity @1;
-    taskResultSuccess @2;
-    taskResultFailed @3;
-    taskResultWorkerDied @4;
-    taskCancel @5;
-    taskCancelConfirmCanceled @6;
-    taskCancelConfirmFailed @7;
-    taskCancelConfirmNotFound @8;
-    balanceTaskCancel @9;
-    workerDisconnect @10;
-    schedulerHasTask @11;
-    schedulerHasNoTask @12;
+    hasCapacity @0;
+    taskResultSuccess @1;
+    taskResultFailed @2;
+    taskResultWorkerDied @3;
+    taskCancel @4;
+    taskCancelConfirmCanceled @5;
+    taskCancelConfirmFailed @6;
+    taskCancelConfirmNotFound @7;
+    balanceTaskCancel @8;
+    workerDisconnect @9;
+    schedulerHasTask @10;
+    schedulerHasNoTask @11;
 }
 
 enum TaskState {

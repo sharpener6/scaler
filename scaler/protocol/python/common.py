@@ -20,7 +20,6 @@ class TaskCancelConfirmType(enum.Enum):
 
 
 class TaskTransition(enum.Enum):
-    Task = _common.TaskTransition.task
     HasCapacity = _common.TaskTransition.hasCapacity
     TaskResultSuccess = _common.TaskTransition.taskResultSuccess
     TaskResultFailed = _common.TaskTransition.taskResultFailed

@@ -97,8 +97,8 @@ class VanillaTaskManager(TaskManager, Looper, Reporter):
             )
             return
 
-        self._task_state_manager.add_state_machine(task.task_id)
-        await self.__routing(task.task_id, TaskTransition.Task, task=task)
+        state_machine = self._task_state_manager.add_state_machine(task.task_id)
+        await self.__state_inactive(task_id=task.task_id, state_machine=state_machine, task=task)
 
     async def on_task_cancel(self, client: ClientID, task_cancel: TaskCancel):
         if not self._task_state_manager.has_state_machine(task_cancel.task_id):
