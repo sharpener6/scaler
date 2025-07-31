@@ -64,7 +64,7 @@ class TaskStateMachine:
     def previous_state(self) -> Optional[TaskState]:
         return self._previous_state
 
-    def state(self) -> TaskState:
+    def current_state(self) -> TaskState:
         return self._state
 
     def is_running(self) -> bool:

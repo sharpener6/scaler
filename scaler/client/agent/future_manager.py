@@ -82,15 +82,18 @@ class ClientFutureManager(FutureManager):
             assert cancel_confirm.task_id == future.task_id
 
             match cancel_confirm.cancel_confirm_type:
-                case TaskCancelConfirmType.CancelNotFound:
-                    future.set_exception(TaskNotFoundError(f"task not found: {task_id.hex()}"), None)
-
                 case TaskCancelConfirmType.Canceled:
                     future.set_canceled()
 
+                case TaskCancelConfirmType.CancelNotFound:
+                    logging.error(f"{task_id.hex()}: task not found")
+                    future.set_canceled()
+
                 case TaskCancelConfirmType.CancelFailed:
-                    logging.info(f"canceling task_id={task_id.hex()} failed")
+                    logging.error(f"{task_id}: task cancel failed")
                     self._task_id_to_future[task_id] = future
 
                 case _:
-                    raise TypeError(f"Unknown task cancel confirm type: {cancel_confirm.cancel_confirm_type}")
+                    raise TypeError(
+                        f"{task_id}: unknown task cancel confirm type:" f" {cancel_confirm.cancel_confirm_type}"
+                    )
