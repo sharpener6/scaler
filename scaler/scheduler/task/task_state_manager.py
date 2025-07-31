@@ -40,7 +40,7 @@ class TaskStateManager:
 
         task_state_machine = self._task_id_to_state_machine.get(task_id, None)
         if task_state_machine is None:
-            logging.error(f"{task_id}: unknown {transition=} for non-existed state machine")
+            logging.error(f"{task_id!r}: unknown {transition=} for non-existed state machine")
             return None
 
         transit_success = task_state_machine.on_transition(transition)
@@ -49,7 +49,7 @@ class TaskStateManager:
             self._statistics[task_state_machine.current_state()] += 1
         else:
             logging.error(
-                f"{task_id}: cannot apply {transition} to current state" f" {task_state_machine.current_state()}"
+                f"{task_id!r}: cannot apply {transition} to current state" f" {task_state_machine.current_state()}"
             )
 
         return task_state_machine if transit_success else None
@@ -59,6 +59,6 @@ class TaskStateManager:
 
     def get_debug_paths(self):
         return "\n".join(
-            f"{task_id}: {state_machine.get_path()}"
+            f"{task_id!r}: {state_machine.get_path()}"
             for task_id, state_machine in self._task_id_to_state_machine.items()
         )
