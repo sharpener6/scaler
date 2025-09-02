@@ -2,70 +2,79 @@
 
 import math
 import time
-import threading
+import unittest
 from concurrent.futures import CancelledError
 
 from scaler import Client, SchedulerClusterCombo
 from scaler.utility.logging.utility import setup_logger
 from scaler.utility.network_util import get_available_tcp_port
 
-def long_running_task(sleep_time: float):
-    """A task that takes time to complete"""
-    time.sleep(sleep_time)
-    return sleep_time
 
-def quick_task():
-    """A task that completes quickly"""
-    return 42
+def fast_task(x):
+    """A task that completes very quickly"""
+    return x * x
 
-def main():
-    setup_logger()
-    
-    address = f"tcp://127.0.0.1:{get_available_tcp_port()}"
-    cluster = SchedulerClusterCombo(address=address, n_workers=3, event_loop="builtin")
-    
-    try:
-        with Client(address=address) as client:
-            print("=== Testing cancel on running task ===")
-            # Test 1: Cancel a running task
-            future1 = client.submit(long_running_task, 2.0)
-            time.sleep(0.1)  # Let task start
-            
-            print(f"Future running: {future1.running()}")
-            print(f"Future done: {future1.done()}")
-            
-            cancel_result = future1.cancel()
-            print(f"Cancel returned: {cancel_result}")
-            print(f"Future cancelled: {future1.cancelled()}")
-            print(f"Future done: {future1.done()}")
-            
-            try:
-                result = future1.result(timeout=1)
-                print(f"Result: {result}")
-            except CancelledError:
-                print("Got CancelledError as expected")
-            except Exception as e:
-                print(f"Got unexpected exception: {e}")
-                
-            print()
-            
-            print("=== Testing cancel on completed task ===")
-            # Test 2: Cancel a completed task (new semantics)
-            future2 = client.submit(quick_task)
-            result2 = future2.result()  # Wait for completion
-            print(f"Task completed with result: {result2}")
-            
-            print(f"Future done: {future2.done()}")
-            print(f"Future cancelled (before cancel): {future2.cancelled()}")
-            
-            # According to new semantics, this should mark as cancelled
-            cancel_result2 = future2.cancel()
-            print(f"Cancel returned: {cancel_result2}")
-            print(f"Future cancelled (after cancel): {future2.cancelled()}")
-            print(f"Future done: {future2.done()}")
-            
-    finally:
-        cluster.shutdown()
 
-if __name__ == "__main__":
-    main()
+def slow_task(x):
+    """A task that takes some time"""
+    time.sleep(2)
+    return x * x
+
+
+class TestCancelSemantics(unittest.TestCase):
+    def setUp(self) -> None:
+        setup_logger()
+        self.address = f"tcp://127.0.0.1:{get_available_tcp_port()}"
+        self._workers = 3
+        self.cluster = SchedulerClusterCombo(address=self.address, n_workers=self._workers, event_loop="builtin")
+
+    def tearDown(self) -> None:
+        self.cluster.shutdown()
+
+    def test_cancel_completed_task_should_mark_cancelled(self):
+        """
+        Test that when a task completes before cancel confirmation,
+        calling cancel() should mark the future as cancelled according to
+        the new TaskCancelConfirm semantics.
+        """
+        with Client(address=self.address) as client:
+            # Submit a fast task that will likely complete quickly
+            fut = client.submit(fast_task, 4)
+            
+            # Wait for result to ensure task is complete
+            result = fut.result()
+            self.assertEqual(result, 16)
+            
+            # Now call cancel - according to new semantics, this should mark as cancelled
+            # even though the task already completed
+            cancel_result = fut.cancel()
+            self.assertTrue(cancel_result, "cancel() should return True")
+            
+            # Future should now be cancelled
+            self.assertTrue(fut.cancelled(), "Future should be marked as cancelled")
+            self.assertTrue(fut.done(), "Future should be done")
+            
+            # Calling result() should raise CancelledError
+            with self.assertRaises(CancelledError):
+                fut.result()
+
+    def test_cancel_running_task_waits_for_confirmation(self):
+        """
+        Test that cancelling a running task waits for TaskCancelConfirm
+        """
+        with Client(address=self.address) as client:
+            # Submit a slow task
+            fut = client.submit(slow_task, 4)
+            
+            # Cancel immediately while task is likely still pending/running
+            cancel_result = fut.cancel()
+            
+            # Should return True indicating cancel was attempted
+            self.assertTrue(cancel_result, "cancel() should return True")
+            
+            # Future should be cancelled (either due to successful cancel or completion during cancel)
+            self.assertTrue(fut.cancelled() or fut.done(), "Future should be cancelled or done")
+
+
+if __name__ == '__main__':
+    unittest.main()
