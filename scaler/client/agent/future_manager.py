@@ -76,20 +76,26 @@ class ClientFutureManager(FutureManager):
             if task_id not in self._task_id_to_future:
                 return
 
-            future = self._task_id_to_future.pop(task_id)
+            future = self._task_id_to_future[task_id]
             assert cancel_confirm.task_id == future.task_id
 
             match cancel_confirm.cancel_confirm_type:
                 case TaskCancelConfirmType.Canceled:
-                    future.set_canceled()
+                    # Task was successfully cancelled, remove from tracking and mark as cancelled
+                    self._task_id_to_future.pop(task_id)
+                    future.set_cancel_confirmed()
 
                 case TaskCancelConfirmType.CancelNotFound:
                     logging.error(f"{task_id!r}: task not found")
-                    future.set_canceled()
+                    # Task not found, treat as cancelled
+                    self._task_id_to_future.pop(task_id)
+                    future.set_cancel_confirmed()
 
                 case TaskCancelConfirmType.CancelFailed:
                     logging.error(f"{task_id!r}: task cancel failed")
-                    self._task_id_to_future[task_id] = future
+                    # Cancel failed, keep the future in tracking - it will complete normally
+                    # The future should continue waiting for TaskResult
+                    pass
 
                 case _:
                     raise TypeError(

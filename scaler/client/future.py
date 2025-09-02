@@ -64,14 +64,15 @@ class ScalerFuture(Future):
     def set_result_ready(
         self, object_id: ObjectID, task_state: TaskState, profile_result: Optional[ProfileResult] = None
     ) -> None:
-        # If cancel was requested but task completed before cancellation, treat as cancelled
-        if self._cancel_ready_event is not None:
-            self.set_cancel_confirmed()
-            return
-
         with self._condition:  # type: ignore[attr-defined]
             if self.done():
                 raise InvalidStateError(f"invalid future state: {self._state}")
+
+            # If cancel was requested, mark as cancelled regardless of task result
+            # This maintains the semantic that once cancel() is called, the future should be cancelled
+            if self._cancel_ready_event is not None:
+                self.set_cancel_confirmed()
+                return
 
             self._state = "FINISHED"
 
