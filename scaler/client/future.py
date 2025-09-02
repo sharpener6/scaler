@@ -72,7 +72,12 @@ class ScalerFuture(Future):
             # This maintains the semantic that once cancel() is called, the future should be cancelled
             # even if the task completed before the cancel could take effect
             if self._cancel_ready_event is not None:
-                self.set_cancel_confirmed()
+                self._state = "CANCELLED"
+                self._result_received = True
+                self._result_ready_event.set()
+                self._cancel_ready_event.set()
+                self._condition.notify_all()  # type: ignore[attr-defined]
+                self._invoke_callbacks()  # type: ignore[attr-defined]
                 return
 
             self._state = "FINISHED"
@@ -89,6 +94,9 @@ class ScalerFuture(Future):
                 self._get_result_object()
 
             self._result_ready_event.set()
+            self._condition.notify_all()  # type: ignore[attr-defined]
+
+        self._invoke_callbacks()  # type: ignore[attr-defined]
 
     def set_cancel_confirmed(self):
         """Called when TaskCancelConfirm is received to mark the future as cancelled."""
@@ -182,8 +190,12 @@ class ScalerFuture(Future):
             if self.cancelled():
                 return True
 
+            # If task is already done, mark as cancelled according to the new semantics
             if self.done():
-                return False
+                self._state = "CANCELLED"
+                self._condition.notify_all()  # type: ignore[attr-defined]
+                self._invoke_callbacks()  # type: ignore[attr-defined]
+                return True
 
             self._cancel_ready_event = threading.Event()
 
