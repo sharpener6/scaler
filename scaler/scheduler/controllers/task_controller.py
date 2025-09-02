@@ -3,8 +3,7 @@ import logging
 from collections import deque
 from typing import Awaitable, Callable, Optional, Dict, Any, Deque, Tuple, List
 
-from scaler.io.async_binder import AsyncBinder
-from scaler.io.async_connector import AsyncConnector
+from scaler.io.mixins import AsyncBinder, AsyncConnector
 from scaler.protocol.python.common import TaskResultType, TaskCancelConfirmType, TaskState, TaskTransition
 from scaler.protocol.python.message import StateTask, Task, TaskCancel, TaskResult, TaskCancelConfirm
 from scaler.protocol.python.status import TaskManagerStatus

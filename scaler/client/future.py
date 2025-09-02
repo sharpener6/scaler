@@ -3,8 +3,7 @@ from concurrent.futures import Future, InvalidStateError
 from typing import Any, Callable, Optional
 
 from scaler.client.serializer.mixins import Serializer
-from scaler.io.sync_connector import SyncConnector
-from scaler.io.sync_object_storage_connector import SyncObjectStorageConnector
+from scaler.io.mixins import SyncConnector, SyncObjectStorageConnector
 from scaler.protocol.python.common import TaskState
 from scaler.protocol.python.message import Task, TaskCancel
 from scaler.utility.event_list import EventList
