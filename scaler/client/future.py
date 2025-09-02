@@ -44,6 +44,7 @@ class ScalerFuture(Future):
 
         self._result_object_id: Optional[ObjectID] = None
         self._result_ready_event = threading.Event()
+        self._cancel_ready_event: Optional[threading.Event] = None
         self._result_received = False
         self._task_state: Optional[TaskState] = None
 
@@ -63,6 +64,11 @@ class ScalerFuture(Future):
     def set_result_ready(
         self, object_id: ObjectID, task_state: TaskState, profile_result: Optional[ProfileResult] = None
     ) -> None:
+        # If cancel was requested but task completed before cancellation, treat as cancelled
+        if self._cancel_ready_event is not None:
+            self.set_cancel_confirmed()
+            return
+
         with self._condition:  # type: ignore[attr-defined]
             if self.done():
                 raise InvalidStateError(f"invalid future state: {self._state}")
@@ -82,15 +88,22 @@ class ScalerFuture(Future):
 
             self._result_ready_event.set()
 
-    def set_canceled(self):
+    def set_cancel_confirmed(self):
+        """Called when TaskCancelConfirm is received to mark the future as cancelled."""
         with self._condition:
             self._state = "CANCELLED"
             self._result_received = True
 
             self._result_ready_event.set()
+            if self._cancel_ready_event is not None:
+                self._cancel_ready_event.set()
             self._condition.notify_all()  # type: ignore[attr-defined]
 
         self._invoke_callbacks()  # type: ignore[attr-defined]
+
+    def set_canceled(self):
+        """Legacy method for backwards compatibility - calls set_cancel_confirmed."""
+        self.set_cancel_confirmed()
 
     def _set_result_or_exception(
         self,
@@ -145,6 +158,13 @@ class ScalerFuture(Future):
 
             return super().result()
 
+    def cancelled(self) -> bool:
+        if self._cancel_ready_event is None:
+            return super().cancelled()
+
+        self._cancel_ready_event.wait()
+        return super().cancelled()
+
     def exception(self, timeout: Optional[float] = None) -> Optional[BaseException]:
         self._result_ready_event.wait(timeout)
 
@@ -163,6 +183,8 @@ class ScalerFuture(Future):
             if self.done():
                 return False
 
+            self._cancel_ready_event = threading.Event()
+
             cancel_flags = TaskCancel.TaskCancelFlags(force=True)
 
             if self._group_task_id is not None:
@@ -170,7 +192,16 @@ class ScalerFuture(Future):
             else:
                 self._connector_agent.send(TaskCancel.new_msg(self._task_id, flags=cancel_flags))
 
-        return True
+        # Wait for confirmation or result with timeout (30 seconds)
+        timeout_success = self._cancel_ready_event.wait(timeout=30.0)
+        
+        if not timeout_success:
+            # Timeout occurred, but we still consider the cancel attempt as "successful"
+            # since we sent the cancel request. The future state will be updated when
+            # the eventual response arrives.
+            return True
+            
+        return self.cancelled()
 
     def add_done_callback(self, fn: Callable[[Future], Any]) -> None:
         with self._condition:  # type: ignore[attr-defined]
