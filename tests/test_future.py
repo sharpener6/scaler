@@ -71,9 +71,9 @@ class TestFuture(unittest.TestCase):
             fut = client.submit(math.sqrt, 16)
             fut.result()
 
-            # cancel() should fail on a completed future.
-            self.assertFalse(fut.cancel())
-            self.assertFalse(fut.cancelled())
+            # With new TaskCancelConfirm semantics, cancel() marks completed futures as cancelled
+            self.assertTrue(fut.cancel())
+            self.assertTrue(fut.cancelled())
 
     def test_exception(self):
         with Client(address=self.address) as client:
