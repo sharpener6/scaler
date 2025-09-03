@@ -12,9 +12,9 @@ from scaler.utility.metadata.profile_result import ProfileResult
 from scaler.utility.serialization import deserialize_failure
 
 
-class ScalerFuture(Future):
-    """ScalerFuture is just trying to mimic the API of standard python future, it doesn't behave exactly as python
-    future
+class ScalerFuture(concurrent.futures.Future):
+    """
+    A drop-in replacement for Python's `concurrent.futures.Future`.
 
     e.g.: if future.cancel, standard python future will immediately get canceled without get cancel confirmation, but
     scaler future will require future confirmation so after future.cancel, it will not immediately get canceled
