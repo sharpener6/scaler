@@ -34,7 +34,6 @@ class TestFuture(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.cluster.shutdown()
-        pass
 
     def test_callback(self):
         done_called_event = Event()
