@@ -1,5 +1,4 @@
-import threading
-from concurrent.futures import Future, InvalidStateError
+import concurrent.futures
 from typing import Any, Callable, Optional
 
 from scaler.client.serializer.mixins import Serializer
@@ -16,8 +15,13 @@ class ScalerFuture(concurrent.futures.Future):
     """
     A drop-in replacement for Python's `concurrent.futures.Future`.
 
-    e.g.: if future.cancel, standard python future will immediately get canceled without get cancel confirmation, but
-    scaler future will require future confirmation so after future.cancel, it will not immediately get canceled
+    This class is designed to be compatible with Python's Future API, but with some key differences:
+
+    - Delayed futures (`is_delayed` set to `True`) might not fetch the result data when the future is done.
+      Instead, the result is lazily fetched when `result()` or `exception()` is called, or when a callback or waiter is
+      added. That is, `result()` might temporarily be blocking even if `done()` is `True`.
+
+    - `cancel()` may block until a cancellation confirmation is received from Scaler's scheduler.
     """
 
     def __init__(
@@ -64,7 +68,7 @@ class ScalerFuture(concurrent.futures.Future):
     ) -> None:
         with self._condition:  # type: ignore[attr-defined]
             if self.done():
-                raise InvalidStateError(f"invalid future state: {self._state}")
+                raise concurrent.futures.InvalidStateError(f"invalid future state: {self._state}")
 
             self._state = "FINISHED"
 
@@ -83,11 +87,16 @@ class ScalerFuture(concurrent.futures.Future):
 
     def set_canceled(self):
         with self._condition:
-            self._state = "CANCELLED"
+            if self.done():
+                return
+
+            self._state = "CANCELLED_AND_NOTIFIED"
             self._result_received = True
             self._cancel_requested = True
 
-            print("Set cancelled notify")
+            for waiter in self._waiters:
+                waiter.add_cancelled(self)
+
             self._condition.notify_all()  # type: ignore[attr-defined]
 
         self._invoke_callbacks()  # type: ignore[attr-defined]
@@ -100,14 +109,14 @@ class ScalerFuture(concurrent.futures.Future):
     ) -> None:
         with self._condition:  # type: ignore[attr-defined]
             if self.cancelled():
-                raise InvalidStateError(f"invalid future state: {self._state}")
+                raise concurrent.futures.InvalidStateError(f"invalid future state: {self._state}")
 
             if self._result_received:
-                raise InvalidStateError("future already received object data.")
+                raise concurrent.futures.InvalidStateError("future already received object data.")
 
             if profiling_info is not None:
                 if self._profiling_info is not None:
-                    raise InvalidStateError("cannot set profiling info twice.")
+                    raise concurrent.futures.InvalidStateError("cannot set profiling info twice.")
 
                 self._profiling_info = profiling_info
 
@@ -124,7 +133,7 @@ class ScalerFuture(concurrent.futures.Future):
                 for waiter in self._waiters:
                     waiter.add_result(self)
 
-            self._condition.notify_all()
+            self._condition.notify_all()  # type: ignore[attr-defined]
 
         self._invoke_callbacks()  # type: ignore[attr-defined]
 
@@ -179,13 +188,18 @@ class ScalerFuture(concurrent.futures.Future):
 
         return self.cancelled()
 
-    def add_done_callback(self, fn: Callable[[Future], Any]) -> None:
-        with self._condition:  # type: ignore[attr-defined]
-            # if it's delayed future, get the result when a callback gets added
-            if self._is_delayed:
+    def add_done_callback(self, fn: Callable[["ScalerFuture"], Any]) -> None:
+        with self._condition:
+            if self.done():
                 self._get_result_object()
+            else:
+                self._done_callbacks.append(fn)  # type: ignore[attr-defined]
+                return
 
-            return super().add_done_callback(fn)
+        try:
+            fn(self)
+        except Exception:
+            concurrent.futures._base.LOGGER.exception(f"exception calling callback for {self!r}")
 
     def _on_waiters_updated(self, waiters: EventList):
         with self._condition:  # type: ignore[attr-defined]
@@ -197,24 +211,30 @@ class ScalerFuture(concurrent.futures.Future):
         return len(self._done_callbacks) > 0 or len(self._waiters) > 0  # type: ignore[attr-defined]
 
     def _get_result_object(self):
-        if self._result_object_id is None or self.cancelled() or self._result_received:
-            return
+        with self._condition:  # type: ignore[attr-defined]
+            if self._result_object_id is None or self.cancelled() or self._result_received:
+                return
 
-        object_bytes = self._connector_storage.get_object(self._result_object_id)
+            object_bytes = self._connector_storage.get_object(self._result_object_id)
 
-        if self._group_task_id is None:
-            # immediately delete non graph result objects
-            # TODO: graph task results could also be deleted if these are not required by another task of the graph.
-            self._connector_storage.delete_object(self._result_object_id)
+            if self._group_task_id is None:
+                # immediately delete non graph result objects
+                # TODO: graph task results could also be deleted if these are not required by another task of the graph.
+                self._connector_storage.delete_object(self._result_object_id)
 
-        match self._task_state:
-            case TaskState.Success:
-                self.set_result(self._serializer.deserialize(object_bytes))
-            case TaskState.Failed:
-                self.set_exception(deserialize_failure(object_bytes))
-            case _:
-                raise ValueError(f"unexpected task status: {self._task_state}")
+            match self._task_state:
+                case TaskState.Success:
+                    self.set_result(self._serializer.deserialize(object_bytes))
+                case TaskState.Failed:
+                    self.set_exception(deserialize_failure(object_bytes))
+                case _:
+                    raise ValueError(f"unexpected task status: {self._task_state}")
 
     def _wait_result_ready(self, timeout: Optional[float] = None):
+        """
+        Blocks until the future is done (either successfully, or on failure/cancellation).
+
+        Raises a `TimeoutError` if it blocks more than `timeout` seconds.
+        """
         if not self.done() and not self._condition.wait(timeout):
             raise TimeoutError()
