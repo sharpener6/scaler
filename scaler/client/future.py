@@ -42,9 +42,9 @@ class ScalerFuture(concurrent.futures.Future):
         self._connector_storage: SyncObjectStorageConnector = connector_storage
 
         self._result_object_id: Optional[ObjectID] = None
-        self._result_ready_event = threading.Event()
         self._result_received = False
         self._task_state: Optional[TaskState] = None
+        self._cancel_requested: bool = False
 
         self._profiling_info: Optional[ProfileResult] = None
 
@@ -79,14 +79,15 @@ class ScalerFuture(concurrent.futures.Future):
             if not self._is_delayed or self._has_result_listeners():
                 self._get_result_object()
 
-            self._result_ready_event.set()
+            self._condition.notify_all()  # type: ignore[attr-defined]
 
     def set_canceled(self):
         with self._condition:
             self._state = "CANCELLED"
             self._result_received = True
+            self._cancel_requested = True
 
-            self._result_ready_event.set()
+            print("Set cancelled notify")
             self._condition.notify_all()  # type: ignore[attr-defined]
 
         self._invoke_callbacks()  # type: ignore[attr-defined]
@@ -123,7 +124,6 @@ class ScalerFuture(concurrent.futures.Future):
                 for waiter in self._waiters:
                     waiter.add_result(self)
 
-            self._result_ready_event.set()
             self._condition.notify_all()
 
         self._invoke_callbacks()  # type: ignore[attr-defined]
@@ -135,9 +135,9 @@ class ScalerFuture(concurrent.futures.Future):
         self._set_result_or_exception(exception=exception, profiling_info=profiling_info)
 
     def result(self, timeout: Optional[float] = None) -> Any:
-        self._result_ready_event.wait(timeout)
-
         with self._condition:  # type: ignore[attr-defined]
+            self._wait_result_ready(timeout)
+
             # if it's delayed future, get the result when future.result() gets called
             if self._is_delayed:
                 self._get_result_object()
@@ -145,16 +145,16 @@ class ScalerFuture(concurrent.futures.Future):
             return super().result()
 
     def exception(self, timeout: Optional[float] = None) -> Optional[BaseException]:
-        self._result_ready_event.wait(timeout)
-
         with self._condition:  # type: ignore[attr-defined]
+            self._wait_result_ready(timeout)
+
             # if it's delayed future, get the result when future.exception() gets called
             if self._is_delayed:
                 self._get_result_object()
 
             return super().exception()
 
-    def cancel(self) -> bool:
+    def cancel(self, timeout: Optional[float] = None) -> bool:
         with self._condition:  # type: ignore[attr-defined]
             if self.cancelled():
                 return True
@@ -162,14 +162,22 @@ class ScalerFuture(concurrent.futures.Future):
             if self.done():
                 return False
 
-            cancel_flags = TaskCancel.TaskCancelFlags(force=True)
+            if not self._cancel_requested:
+                # Send cancellation request to the server
+                cancel_flags = TaskCancel.TaskCancelFlags(force=True)
 
-            if self._group_task_id is not None:
-                self._connector_agent.send(TaskCancel.new_msg(self._group_task_id, flags=cancel_flags))
-            else:
-                self._connector_agent.send(TaskCancel.new_msg(self._task_id, flags=cancel_flags))
+                if self._group_task_id is not None:
+                    self._connector_agent.send(TaskCancel.new_msg(self._group_task_id, flags=cancel_flags))
+                else:
+                    self._connector_agent.send(TaskCancel.new_msg(self._task_id, flags=cancel_flags))
 
-        return True
+                self._cancel_requested = True
+
+            # Wait for the answer from the server, can either be a cancel confirmation, or the results if the task
+            # finished while being canceled.
+            self._wait_result_ready(timeout)
+
+        return self.cancelled()
 
     def add_done_callback(self, fn: Callable[[Future], Any]) -> None:
         with self._condition:  # type: ignore[attr-defined]
@@ -206,3 +214,7 @@ class ScalerFuture(concurrent.futures.Future):
                 self.set_exception(deserialize_failure(object_bytes))
             case _:
                 raise ValueError(f"unexpected task status: {self._task_state}")
+
+    def _wait_result_ready(self, timeout: Optional[float] = None):
+        if not self.done() and not self._condition.wait(timeout):
+            raise TimeoutError()
