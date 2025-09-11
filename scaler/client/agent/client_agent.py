@@ -13,15 +13,14 @@ from scaler.client.agent.heartbeat_manager import ClientHeartbeatManager
 from scaler.client.agent.object_manager import ClientObjectManager
 from scaler.client.agent.task_manager import ClientTaskManager
 from scaler.client.serializer.mixins import Serializer
-from scaler.io.mixins import AsyncConnector
 from scaler.io.async_connector import ZMQAsyncConnector
+from scaler.io.mixins import AsyncConnector
 from scaler.protocol.python.common import ObjectStorageAddress
 from scaler.protocol.python.message import (
     ClientDisconnect,
     ClientHeartbeatEcho,
     ClientShutdownResponse,
     GraphTask,
-    GraphTaskCancel,
     ObjectInstruction,
     Task,
     TaskCancel,
@@ -142,10 +141,6 @@ class ClientAgent(threading.Thread):
 
         if isinstance(message, GraphTask):
             await self._task_manager.on_new_graph_task(message)
-            return
-
-        if isinstance(message, GraphTaskCancel):
-            await self._task_manager.on_cancel_graph_task(message)
             return
 
         raise TypeError(f"Unknown {message=}")

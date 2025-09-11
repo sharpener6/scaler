@@ -4,18 +4,17 @@ import logging
 
 import zmq.asyncio
 
-from scaler.io.mixins import AsyncBinder, AsyncConnector, AsyncObjectStorageConnector
 from scaler.io.async_binder import ZMQAsyncBinder
 from scaler.io.async_connector import ZMQAsyncConnector
 from scaler.io.async_object_storage_connector import PyAsyncObjectStorageConnector
 from scaler.io.config import CLEANUP_INTERVAL_SECONDS, STATUS_REPORT_INTERVAL_SECONDS
+from scaler.io.mixins import AsyncBinder, AsyncConnector, AsyncObjectStorageConnector
 from scaler.protocol.python.common import ObjectStorageAddress
 from scaler.protocol.python.message import (
     ClientDisconnect,
     ClientHeartbeat,
     DisconnectRequest,
     GraphTask,
-    GraphTaskCancel,
     InformationRequest,
     ObjectInstruction,
     Task,
@@ -161,10 +160,6 @@ class Scheduler:
         # graph manager
         if isinstance(message, GraphTask):
             await self._graph_controller.on_graph_task(ClientID(source), message)
-            return
-
-        if isinstance(message, GraphTaskCancel):
-            await self._graph_controller.on_graph_task_cancel(ClientID(source), message)
             return
 
         # =====================================================================================

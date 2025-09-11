@@ -93,12 +93,16 @@ class VanillaTaskController(TaskController, Looper, Reporter):
         state_machine = self._task_state_manager.add_state_machine(task.task_id)
         await self.__state_inactive(task_id=task.task_id, state_machine=state_machine, task=task)
 
-    async def on_task_cancel(self, client: ClientID, task_cancel: TaskCancel):
+    async def on_task_cancel(self, client_id: ClientID, task_cancel: TaskCancel):
+        if self._graph_controller.is_graph_subtask(task_cancel.task_id):
+            await self._graph_controller.on_graph_task_cancel(client_id, task_cancel)
+            return
+
         state_machine = self._task_state_manager.get_state_machine(task_cancel.task_id)
         if state_machine is None:
             logging.error(f"{task_cancel.task_id!r}: task not exists while received TaskCancel, send TaskCancelConfirm")
             await self._binder.send(
-                client, TaskCancelConfirm.new_msg(task_cancel.task_id, TaskCancelConfirmType.CancelNotFound)
+                client_id, TaskCancelConfirm.new_msg(task_cancel.task_id, TaskCancelConfirmType.CancelNotFound)
             )
             return
 
@@ -112,7 +116,7 @@ class VanillaTaskController(TaskController, Looper, Reporter):
             )
             return
 
-        await self.__routing(task_cancel.task_id, TaskTransition.TaskCancel, client=client, task_cancel=task_cancel)
+        await self.__routing(task_cancel.task_id, TaskTransition.TaskCancel, client=client_id, task_cancel=task_cancel)
 
     async def on_task_balance_cancel(self, task_id: TaskID):
         await self.__routing(task_id, TaskTransition.BalanceTaskCancel)
@@ -311,7 +315,7 @@ class VanillaTaskController(TaskController, Looper, Reporter):
         self._task_state_manager.remove_state_machine(task_result.task_id)
         self._task_id_to_task.pop(task_result.task_id)
 
-        if self._graph_controller.is_graph_sub_task(task_result.task_id):
+        if self._graph_controller.is_graph_subtask(task_result.task_id):
             await self._graph_controller.on_graph_sub_task_result(task_result)
 
         await self.__retry_unassignable()
@@ -323,7 +327,7 @@ class VanillaTaskController(TaskController, Looper, Reporter):
         self._task_state_manager.remove_state_machine(task_cancel_confirm.task_id)
         self._task_id_to_task.pop(task_cancel_confirm.task_id)
 
-        if self._graph_controller.is_graph_sub_task(task_cancel_confirm.task_id):
+        if self._graph_controller.is_graph_subtask(task_cancel_confirm.task_id):
             await self._graph_controller.on_graph_sub_task_cancel_confirm(task_cancel_confirm)
 
         await self.__retry_unassignable()

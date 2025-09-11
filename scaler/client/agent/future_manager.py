@@ -65,6 +65,7 @@ class ClientFutureManager(FutureManager):
                     )
 
                 case TaskResultType.Success:
+                    print(result.results)
                     assert len(result.results) == 1
                     future.set_result_ready(ObjectID(result.results[0]), TaskState.Success, profile_result)
 

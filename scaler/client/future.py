@@ -52,6 +52,8 @@ class ScalerFuture(concurrent.futures.Future):
 
         self._profiling_info: Optional[ProfileResult] = None
 
+        print(f"{self._task_id!r}: create future, {self._is_graph_sub_task()=}")
+
     @property
     def task_id(self) -> TaskID:
         return self._task_id
@@ -66,6 +68,7 @@ class ScalerFuture(concurrent.futures.Future):
     def set_result_ready(
         self, object_id: ObjectID, task_state: TaskState, profile_result: Optional[ProfileResult] = None
     ) -> None:
+        print(f"{self._task_id!r}: get result")
         with self._condition:  # type: ignore[attr-defined]
             if self.done():
                 raise concurrent.futures.InvalidStateError(f"invalid future state: {self._state}")
@@ -176,15 +179,19 @@ class ScalerFuture(concurrent.futures.Future):
                 cancel_flags = TaskCancel.TaskCancelFlags(force=True)
 
                 if self._group_task_id is not None:
-                    self._connector_agent.send(TaskCancel.new_msg(self._group_task_id, flags=cancel_flags))
+                    print(f"{self._task_id!r}: cancel graph task")
+                    self._connector_agent.send(TaskCancel.new_msg(self._group_task_id))
                 else:
+                    print(f"{self._task_id!r}: cancel normal task")
                     self._connector_agent.send(TaskCancel.new_msg(self._task_id, flags=cancel_flags))
 
                 self._cancel_requested = True
 
             # Wait for the answer from the server, can either be a cancel confirmation, or the results if the task
             # finished while being canceled.
+            print(f"{self._task_id!r}: wait result")
             self._wait_result_ready(timeout)
+            print(f"{self._task_id!r}: wait result done")
 
         return self.cancelled()
 
@@ -217,7 +224,7 @@ class ScalerFuture(concurrent.futures.Future):
 
             object_bytes = self._connector_storage.get_object(self._result_object_id)
 
-            if self._group_task_id is None:
+            if self._is_simple_task():
                 # immediately delete non graph result objects
                 # TODO: graph task results could also be deleted if these are not required by another task of the graph.
                 self._connector_storage.delete_object(self._result_object_id)
@@ -238,3 +245,9 @@ class ScalerFuture(concurrent.futures.Future):
         """
         if not self.done() and not self._condition.wait(timeout):
             raise TimeoutError()
+
+    def _is_simple_task(self):
+        return self._group_task_id is None and self._task_id is not None
+
+    def _is_graph_sub_task(self):
+        return self._group_task_id is not None and self._task_id is not None
