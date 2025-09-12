@@ -12,6 +12,8 @@ from scaler.io.config import (
     DEFAULT_WORKER_TIMEOUT_SECONDS,
 )
 from scaler.scheduler.allocate_policy.allocate_policy import AllocatePolicy
+from scaler.scheduler.config import SchedulerConfig
+from scaler.scheduler.controllers.config_controller import TomlConfigController
 from scaler.utility.event_loop import EventLoopType
 from scaler.utility.network_util import get_available_tcp_port
 from scaler.utility.object_storage_config import ObjectStorageConfig
@@ -20,6 +22,7 @@ from scaler.utility.zmq_config import ZMQConfig
 
 def get_args():
     parser = argparse.ArgumentParser("scaler scheduler", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--config", type=str, default="scheduler.toml", help="Path to the TOML configuration file.")
     parser.add_argument("--io-threads", type=int, default=DEFAULT_IO_THREADS, help="number of io threads for zmq")
     parser.add_argument(
         "--max-number-of-tasks-waiting",
@@ -127,8 +130,15 @@ def get_args():
 def main():
     args = get_args()
 
-    if args.object_storage_address is None:
-        object_storage_address = ObjectStorageConfig(args.address.host, get_available_tcp_port())
+    config_controller = TomlConfigController(args.config)
+    scheduler_config = config_controller.get_dataclass("Scheduler", SchedulerConfig)
+    config_controller.update_from_args(scheduler_config, args)
+
+    if config_controller.object_storage_address is None:
+        oss_config = config_controller.get_dataclass("object_storage_server", ObjectStorageConfig)
+        config_controller.update_from_args(oss_config, args)
+
+        object_storage_address = ObjectStorageConfig(config_controller.address.host, get_available_tcp_port())
         object_storage = ObjectStorageServerProcess(
             storage_address=object_storage_address,
             logging_paths=args.logging_paths,
@@ -142,19 +152,19 @@ def main():
         object_storage = None
 
     scheduler = SchedulerProcess(
-        address=args.address,
+        address=scheduler_config.address,
         storage_address=object_storage_address,
-        monitor_address=args.monitor_address,
-        io_threads=args.io_threads,
-        max_number_of_tasks_waiting=args.max_number_of_tasks_waiting,
-        client_timeout_seconds=args.client_timeout_seconds,
-        worker_timeout_seconds=args.worker_timeout_seconds,
-        object_retention_seconds=args.object_retention_seconds,
-        load_balance_seconds=args.load_balance_seconds,
-        load_balance_trigger_times=args.load_balance_trigger_times,
-        protected=args.protected,
-        allocate_policy=AllocatePolicy[args.allocate_policy],
-        event_loop=args.event_loop,
+        monitor_address=scheduler_config.monitor_address,
+        io_threads=scheduler_config.io_threads,
+        max_number_of_tasks_waiting=scheduler_config.max_number_of_tasks_waiting,
+        client_timeout_seconds=scheduler_config.client_timeout_seconds,
+        worker_timeout_seconds=scheduler_config.worker_timeout_seconds,
+        object_retention_seconds=scheduler_config.object_retention_seconds,
+        load_balance_seconds=scheduler_config.load_balance_seconds,
+        load_balance_trigger_times=scheduler_config.load_balance_trigger_times,
+        protected=scheduler_config.protected,
+        allocate_policy=AllocatePolicy[scheduler_config.allocate_policy],
+        event_loop=scheduler_config.event_loop,
         logging_paths=args.logging_paths,
         logging_config_file=args.logging_config_file,
         logging_level=args.logging_level,
