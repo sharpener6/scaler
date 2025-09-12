@@ -14,7 +14,7 @@ from scaler.io.config import (
     DEFAULT_WORKER_DEATH_TIMEOUT,
 )
 from scaler.utility.event_loop import EventLoopType, register_event_loop
-from scaler.utility.object_storage_config import ObjectStorageConfig
+from scaler.config import ObjectStorageConfig, ScalerConfig
 from scaler.utility.zmq_config import ZMQConfig
 
 
@@ -22,6 +22,7 @@ def get_args():
     parser = argparse.ArgumentParser(
         "standalone compute cluster", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    parser.add_argument("--config", type=str, default=None, help="Path to the TOML configuration file.")
     parser.add_argument(
         "--num-of-workers", "-n", type=int, default=DEFAULT_NUMBER_OF_WORKER, help="number of workers in cluster"
     )
@@ -134,34 +135,38 @@ def get_args():
 
 def main():
     args = get_args()
-    register_event_loop(args.event_loop)
 
-    if args.worker_names is None:
-        worker_names = [f"{socket.gethostname().split('.')[0]}" for _ in range(args.num_of_workers)]
+    scaler_config = ScalerConfig.from_toml(args.config)
+    scaler_config.update_from_args(args)
+
+    register_event_loop(scaler_config.scheduler.event_loop)
+
+    if scaler_config.cluster.worker_names is None:
+        worker_names = [f"{socket.gethostname().split('.')[0]}" for _ in range(scaler_config.cluster.num_of_workers)]
     else:
-        worker_names = args.worker_names.split(",")
-        if len(worker_names) != args.num_of_workers:
+        worker_names = scaler_config.cluster.worker_names
+        if len(worker_names) != scaler_config.cluster.num_of_workers:
             raise ValueError(
-                f"number of worker names ({len(args.worker_names)}) must match number of workers "
-                f"({args.num_of_workers})"
+                f"number of worker names ({len(scaler_config.cluster.worker_names)}) must match number of workers "
+                f"({scaler_config.cluster.num_of_workers})"
             )
 
     cluster = Cluster(
-        address=args.address,
-        storage_address=args.object_storage_address,
-        worker_names=worker_names,
-        worker_tags=args.worker_tags or set(),
-        per_worker_task_queue_size=args.worker_task_queue_size,
-        heartbeat_interval_seconds=args.heartbeat_interval,
-        task_timeout_seconds=args.task_timeout_seconds,
-        garbage_collect_interval_seconds=args.garbage_collect_interval_seconds,
-        trim_memory_threshold_bytes=args.trim_memory_threshold_bytes,
-        death_timeout_seconds=args.death_timeout_seconds,
-        hard_processor_suspend=args.hard_processor_suspend,
-        event_loop=args.event_loop,
-        worker_io_threads=args.io_threads,
-        logging_paths=args.logging_paths,
-        logging_level=args.logging_level,
-        logging_config_file=args.logging_config_file,
+        address=scaler_config.scheduler.address,
+        storage_address=scaler_config.object_storage,
+        worker_names=scaler_config.cluster.worker_names,
+        worker_tags=scaler_config.cluster.worker_tags,
+        per_worker_task_queue_size=scaler_config.worker.per_worker_task_queue_size,
+        heartbeat_interval_seconds=scaler_config.worker.heartbeat_interval_seconds,
+        task_timeout_seconds=scaler_config.worker.task_timeout_seconds,
+        garbage_collect_interval_seconds=scaler_config.worker.garbage_collect_interval_seconds,
+        trim_memory_threshold_bytes=scaler_config.worker.trim_memory_threshold_bytes,
+        death_timeout_seconds=scaler_config.worker.death_timeout_seconds,
+        hard_processor_suspend=scaler_config.worker.hard_processor_suspend,
+        event_loop=scaler_config.scheduler.event_loop,
+        worker_io_threads=scaler_config.worker.io_threads,
+        logging_paths=scaler_config.logging.paths,
+        logging_level=scaler_config.logging.level,
+        logging_config_file=scaler_config.logging.config_file,
     )
     cluster.run()
