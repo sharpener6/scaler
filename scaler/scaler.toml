@@ -1,0 +1,41 @@
+[cluster]
+# scheduler_address: ZMQConfig
+# object_storage_address: ObjectStorageConfig
+# monitor_address: Optional[ZMQConfig] = None
+tags = ""
+worker_name_prefix = "worker"
+# num_of_workers = 4
+io_threads = 1
+task_queue_size = 1000
+heartbeat_interval_seconds = 2
+garbage_collect_interval_seconds = 30
+trim_memory_threshold_bytes = 1073741824
+task_timeout_seconds = 0
+death_timeout_seconds = 300
+# hard_processor_suspend = 1
+event_loop = "builtin"
+# logging_paths: Tuple[str, ...] = ("/dev/stdout",)
+logging_level = "INFO"
+
+[object_storage_server]
+address = "tcp://127.0.0.1:6380"
+
+[scheduler]
+event_loop = "asyncio"
+# address: ZMQConfig = None
+# storage_address: Optional[ObjectStorageConfig] = None
+# monitor_address: Optional[ZMQConfig] = None
+io_threads = 1
+max_number_of_tasks_waiting = -1
+client_timeout_seconds = 60
+worker_timeout_seconds = 60
+object_retention_seconds = 60
+load_balance_seconds = 1
+load_balance_trigger_times = 2
+protected = true
+# allocate_policy: AllocatePolicy
+
+[webui]
+address = "tcp://127.0.0.1:6380"
+host = "127.0.0.1"
+port = 6380

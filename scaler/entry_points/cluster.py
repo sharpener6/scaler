@@ -2,6 +2,7 @@ import argparse
 import socket
 
 from scaler.cluster.cluster import Cluster
+from scaler.cluster.config import ClusterConfig
 from scaler.io.config import (
     DEFAULT_GARBAGE_COLLECT_INTERVAL_SECONDS,
     DEFAULT_HARD_PROCESSOR_SUSPEND,
@@ -13,6 +14,7 @@ from scaler.io.config import (
     DEFAULT_TRIM_MEMORY_THRESHOLD_BYTES,
     DEFAULT_WORKER_DEATH_TIMEOUT,
 )
+from scaler.scheduler.controllers.config_controller import TomlConfigController
 from scaler.utility.event_loop import EventLoopType, register_event_loop
 from scaler.utility.object_storage_config import ObjectStorageConfig
 from scaler.utility.zmq_config import ZMQConfig
@@ -22,6 +24,7 @@ def get_args():
     parser = argparse.ArgumentParser(
         "standalone compute cluster", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    parser.add_argument("--config", type=str, default="cluster.toml", help="Path to the TOML configuration file.")
     parser.add_argument(
         "--num-of-workers", "-n", type=int, default=DEFAULT_NUMBER_OF_WORKER, help="number of workers in cluster"
     )
@@ -134,34 +137,39 @@ def get_args():
 
 def main():
     args = get_args()
-    register_event_loop(args.event_loop)
 
-    if args.worker_names is None:
-        worker_names = [f"{socket.gethostname().split('.')[0]}" for _ in range(args.num_of_workers)]
+    config_controller = TomlConfigController(args.config)
+    cluster_config = config_controller.get_dataclass("webui", ClusterConfig)
+    config_controller.update_from_args(cluster_config, args)
+
+    register_event_loop(config_controller.event_loop)
+
+    if cluster_config.worker_names is None:
+        worker_names = [f"{socket.gethostname().split('.')[0]}" for _ in range(cluster_config.num_of_workers)]
     else:
-        worker_names = args.worker_names.split(",")
-        if len(worker_names) != args.num_of_workers:
+        worker_names = cluster_config.worker_names.split(",")
+        if len(worker_names) != cluster_config.num_of_workers:
             raise ValueError(
-                f"number of worker names ({len(args.worker_names)}) must match number of workers "
-                f"({args.num_of_workers})"
+                f"number of worker names ({len(cluster_config.worker_names)}) must match number of workers "
+                f"({cluster_config.num_of_workers})"
             )
 
     cluster = Cluster(
-        address=args.address,
-        storage_address=args.object_storage_address,
+        address=cluster_config.address,
+        storage_address=cluster_config.object_storage_address,
         worker_names=worker_names,
-        worker_tags=args.worker_tags or set(),
-        per_worker_task_queue_size=args.worker_task_queue_size,
-        heartbeat_interval_seconds=args.heartbeat_interval,
-        task_timeout_seconds=args.task_timeout_seconds,
-        garbage_collect_interval_seconds=args.garbage_collect_interval_seconds,
-        trim_memory_threshold_bytes=args.trim_memory_threshold_bytes,
-        death_timeout_seconds=args.death_timeout_seconds,
-        hard_processor_suspend=args.hard_processor_suspend,
-        event_loop=args.event_loop,
-        worker_io_threads=args.io_threads,
-        logging_paths=args.logging_paths,
-        logging_level=args.logging_level,
-        logging_config_file=args.logging_config_file,
+        worker_tags=cluster_config.worker_tags or set(),
+        per_worker_task_queue_size=cluster_config.worker_task_queue_size,
+        heartbeat_interval_seconds=cluster_config.heartbeat_interval,
+        task_timeout_seconds=cluster_config.task_timeout_seconds,
+        garbage_collect_interval_seconds=cluster_config.garbage_collect_interval_seconds,
+        trim_memory_threshold_bytes=cluster_config.trim_memory_threshold_bytes,
+        death_timeout_seconds=cluster_config.death_timeout_seconds,
+        hard_processor_suspend=cluster_config.hard_processor_suspend,
+        event_loop=cluster_config.event_loop,
+        worker_io_threads=cluster_config.io_threads,
+        logging_paths=cluster_config.logging_paths,
+        logging_level=cluster_config.logging_level,
+        logging_config_file=cluster_config.logging_config_file,
     )
     cluster.run()
