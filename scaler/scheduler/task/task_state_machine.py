@@ -1,11 +1,6 @@
-import enum
 from typing import Optional
 
 from scaler.protocol.python.common import TaskTransition, TaskState
-
-
-class TaskTypeFlags(enum.Flag):
-    GraphManager = enum.auto()
 
 
 class TaskStateMachine:
@@ -51,10 +46,8 @@ class TaskStateMachine:
         self._previous_state = None
         self._state = TaskState.Inactive
 
-        self._flags = TaskTypeFlags(0)
-
     def __repr__(self):
-        return f"TaskStateMachine(previous_state={self._previous_state}, state={self._state}, flags={self._flags})"
+        return f"TaskStateMachine(previous_state={self._previous_state}, state={self._state})"
 
     def get_path(self):
         return (
@@ -97,9 +90,3 @@ class TaskStateMachine:
         self._previous_state = self._state
         self._state = options[transition]
         return True
-
-    def add_flag(self, flag: TaskTypeFlags):
-        self._flags |= flag
-
-    def remove_flag(self, flag: TaskTypeFlags):
-        self._flags ^= flag

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from collections import deque
-from typing import Awaitable, Callable, Optional, Dict, Any, Deque, Tuple, List
+from typing import Awaitable, Callable, Optional, Dict, Deque, Tuple, List, Any
 
 from scaler.io.mixins import AsyncBinder, AsyncConnector
 from scaler.protocol.python.common import TaskResultType, TaskCancelConfirmType, TaskState, TaskTransition
@@ -15,7 +15,7 @@ from scaler.scheduler.controllers.mixins import (
     WorkerController,
     GraphTaskController,
 )
-from scaler.scheduler.task.task_state_machine import TaskTypeFlags, TaskStateMachine
+from scaler.scheduler.task.task_state_machine import TaskStateMachine
 from scaler.scheduler.task.task_state_manager import TaskStateManager
 from scaler.utility.identifiers import ClientID, TaskID, WorkerID
 from scaler.utility.mixins import Looper, Reporter
@@ -38,7 +38,7 @@ class VanillaTaskController(TaskController, Looper, Reporter):
 
         self._unassigned: Deque[TaskID] = deque()
 
-        self._state_functions: Dict[TaskState, Callable[[TaskID, TaskStateMachine, Any, ...], Awaitable[None]]] = {
+        self._state_functions: Dict[TaskState, Callable[[*Tuple[Any, ...]], Awaitable[None]]] = {
             TaskState.Inactive: self.__state_inactive,
             TaskState.Running: self.__state_running,
             TaskState.Canceling: self.__state_canceling,
@@ -171,9 +171,6 @@ class VanillaTaskController(TaskController, Looper, Reporter):
     def get_status(self) -> TaskManagerStatus:
         return TaskManagerStatus.new_msg(state_to_count=self._task_state_manager.get_statistics())
 
-    def add_task_flag(self, task_id: TaskID, flag: TaskTypeFlags):
-        self._task_state_manager.get_state_machine(task_id).add_flag(flag)
-
     async def __state_inactive(self, task_id: TaskID, state_machine: TaskStateMachine, task: Task):
         assert task_id == task.task_id
         assert state_machine.current_state() == TaskState.Inactive
@@ -235,8 +232,8 @@ class VanillaTaskController(TaskController, Looper, Reporter):
             TaskCancel.new_msg(task_id=task_id, flags=TaskCancel.TaskCancelFlags(force=False))
         )
 
-    async def __state_worker_disconnecting(self, task_id: TaskID, state_machine: TaskStateMachine, worker_id: bytes):
-        assert isinstance(worker_id, bytes)
+    async def __state_worker_disconnecting(self, task_id: TaskID, state_machine: TaskStateMachine, worker_id: WorkerID):
+        assert isinstance(worker_id, WorkerID)
         assert state_machine.current_state() == TaskState.WorkerDisconnecting
 
         # this is where we decide to reroute or just send fail

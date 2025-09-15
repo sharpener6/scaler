@@ -15,7 +15,6 @@ from scaler.protocol.python.message import (
     WorkerHeartbeat,
     TaskCancelConfirm,
 )
-from scaler.scheduler.task.task_state_machine import TaskTypeFlags
 from scaler.utility.identifiers import ClientID, ObjectID, TaskID, WorkerID
 from scaler.utility.mixins import Reporter
 
@@ -115,10 +114,6 @@ class GraphTaskController(Reporter):
 
 
 class TaskController(Reporter):
-    @abc.abstractmethod
-    def add_task_flag(self, task_id: bytes, flag: TaskTypeFlags):
-        raise NotImplementedError()
-
     @abc.abstractmethod
     async def on_task_new(self, task: Task):
         raise NotImplementedError()
