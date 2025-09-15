@@ -1,7 +1,7 @@
 import logging
 import threading
 from concurrent.futures import Future, InvalidStateError
-from typing import Dict
+from typing import Dict, Optional
 
 from scaler.client.agent.mixins import FutureManager
 from scaler.client.future import ScalerFuture
@@ -65,12 +65,12 @@ class ClientFutureManager(FutureManager):
                     )
 
                 case TaskResultType.Success:
-                    assert len(result.results) == 1
-                    future.set_result_ready(ObjectID(result.results[0]), TaskState.Success, profile_result)
+                    result_object_id = self.__get_result_object_id(result)
+                    future.set_result_ready(result_object_id, TaskState.Success, profile_result)
 
                 case TaskResultType.Failed:
-                    assert len(result.results) == 1
-                    future.set_result_ready(ObjectID(result.results[0]), TaskState.Failed, profile_result)
+                    result_object_id = self.__get_result_object_id(result)
+                    future.set_result_ready(result_object_id, TaskState.Failed, profile_result)
 
                 case _:
                     raise TypeError(f"{result.task_id.hex()}: Unknown task status: {result.result_type}")
@@ -100,3 +100,15 @@ class ClientFutureManager(FutureManager):
                     raise TypeError(
                         f"{task_id}: unknown task cancel confirm type:" f" {cancel_confirm.cancel_confirm_type}"
                     )
+
+    @staticmethod
+    def __get_result_object_id(result: TaskResult) -> Optional[ObjectID]:
+        if len(result.results) == 1:
+            result_object_id = ObjectID(result.results[0])
+        elif len(result.results) == 0:
+            # this will happen only if umbrella task is done
+            result_object_id = None
+        else:
+            raise ValueError(f"{result.task_id!r}: received multiple objects for the results: {len(result.results)=}")
+
+        return result_object_id

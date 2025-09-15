@@ -9,6 +9,7 @@ class TaskTypeFlags(enum.Flag):
 
 
 class TaskStateMachine:
+    # see https://github.com/finos/opengris-scaler/issues/56
     TRANSITION_MAP: dict[TaskState, dict[TaskTransition, TaskState]] = {
         TaskState.Inactive: {
             TaskTransition.HasCapacity: TaskState.Running,

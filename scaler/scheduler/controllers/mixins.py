@@ -7,7 +7,6 @@ from scaler.protocol.python.message import (
     ClientHeartbeat,
     DisconnectRequest,
     GraphTask,
-    GraphTaskCancel,
     InformationRequest,
     ObjectInstruction,
     Task,
@@ -99,7 +98,7 @@ class GraphTaskController(Reporter):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def on_graph_task_cancel(self, client_id: ClientID, graph_task_cancel: GraphTaskCancel):
+    async def on_graph_task_cancel(self, graph_task_cancel: TaskCancel):
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -111,7 +110,7 @@ class GraphTaskController(Reporter):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def is_graph_sub_task(self, task_id: TaskID) -> bool:
+    def is_graph_subtask(self, task_id: TaskID) -> bool:
         raise NotImplementedError()
 
 

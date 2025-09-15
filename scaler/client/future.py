@@ -64,7 +64,7 @@ class ScalerFuture(concurrent.futures.Future):
             return self._profiling_info
 
     def set_result_ready(
-        self, object_id: ObjectID, task_state: TaskState, profile_result: Optional[ProfileResult] = None
+        self, object_id: Optional[ObjectID], task_state: TaskState, profile_result: Optional[ProfileResult] = None
     ) -> None:
         with self._condition:  # type: ignore[attr-defined]
             if self.done():
@@ -200,6 +200,7 @@ class ScalerFuture(concurrent.futures.Future):
             fn(self)
         except Exception:
             concurrent.futures._base.LOGGER.exception(f"exception calling callback for {self!r}")
+            raise
 
     def _on_waiters_updated(self, waiters: EventList):
         with self._condition:  # type: ignore[attr-defined]
@@ -217,7 +218,7 @@ class ScalerFuture(concurrent.futures.Future):
 
             object_bytes = self._connector_storage.get_object(self._result_object_id)
 
-            if self._group_task_id is None:
+            if self._is_simple_task():
                 # immediately delete non graph result objects
                 # TODO: graph task results could also be deleted if these are not required by another task of the graph.
                 self._connector_storage.delete_object(self._result_object_id)
@@ -238,3 +239,15 @@ class ScalerFuture(concurrent.futures.Future):
         """
         if not self.done() and not self._condition.wait(timeout):
             raise TimeoutError()
+
+    def _is_simple_task(self):
+        return self._group_task_id is None and self._task_id is not None
+
+    def __task_type(self) -> str:
+        if self._group_task_id is None:
+            return "SimpleTask"
+
+        if self._group_task_id == self._task_id:
+            return "GraphUmbrellaTask"
+        else:
+            return "GraphSubTask"

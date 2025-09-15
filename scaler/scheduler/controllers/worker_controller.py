@@ -39,7 +39,7 @@ class VanillaWorkerController(WorkerController, Looper, Reporter):
         self._binder_monitor = binder_monitor
         self._task_controller = task_controller
 
-    def acquire_worker(self, task: Task) -> Optional[WorkerID]:
+    def acquire_worker(self, task: Task) -> WorkerID:
         return self._allocator_policy.assign_task(task)
 
     async def on_task_cancel(self, task_cancel: TaskCancel):

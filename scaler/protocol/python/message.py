@@ -250,22 +250,6 @@ class GraphTask(Message):
         )
 
 
-class GraphTaskCancel(Message):
-    def __init__(self, msg):
-        super().__init__(msg)
-
-    @property
-    def task_id(self) -> TaskID:
-        return TaskID(self._msg.taskId)
-
-    @staticmethod
-    def new_msg(task_id: TaskID) -> "GraphTaskCancel":
-        return GraphTaskCancel(_message.GraphTaskCancel(taskId=bytes(task_id)))
-
-    def get_message(self):
-        return self._msg
-
-
 class ClientHeartbeat(Message):
     def __init__(self, msg):
         super().__init__(msg)
@@ -690,8 +674,8 @@ PROTOCOL: bidict.bidict[str, Type[Message]] = bidict.bidict(
         "taskCancel": TaskCancel,
         "taskCancelConfirm": TaskCancelConfirm,
         "taskResult": TaskResult,
+        "taskLog": TaskLog,
         "graphTask": GraphTask,
-        "graphTaskCancel": GraphTaskCancel,
         "objectInstruction": ObjectInstruction,
         "clientHeartbeat": ClientHeartbeat,
         "clientHeartbeatEcho": ClientHeartbeatEcho,
@@ -711,6 +695,5 @@ PROTOCOL: bidict.bidict[str, Type[Message]] = bidict.bidict(
         "processorInitialized": ProcessorInitialized,
         "informationRequest": InformationRequest,
         "informationResponse": InformationResponse,
-        "taskLog": TaskLog,
     }
 )

@@ -61,10 +61,6 @@ struct GraphTask {
     graph @3 :List(Task);
 }
 
-struct GraphTaskCancel {
-    taskId @0 :Data;
-}
-
 struct ClientHeartbeat {
     resource @0 :Status.Resource;
     latencyUS @1 :UInt32;
@@ -185,9 +181,9 @@ struct Message {
         taskCancel @1 :TaskCancel;
         taskCancelConfirm @2 :TaskCancelConfirm;
         taskResult @3 :TaskResult;
+        taskLog @4 :TaskLog;
 
-        graphTask @4 :GraphTask;
-        graphTaskCancel @5 :GraphTaskCancel;
+        graphTask @5 :GraphTask;
 
         objectInstruction @6 :ObjectInstruction;
 
@@ -215,7 +211,5 @@ struct Message {
 
         informationRequest @23 :InformationRequest;
         informationResponse @24 :InformationResponse;
-
-        taskLog @25 :TaskLog;
     }
 }

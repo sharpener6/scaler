@@ -45,7 +45,7 @@ class VanillaInformationController(InformationController, Looper):
         self._task_controller = task_controller
         self._worker_controller = worker_controller
 
-    def on_request(self, request: InformationRequest):
+    async def on_request(self, request: InformationRequest):
         # TODO: implement commands
         pass
 

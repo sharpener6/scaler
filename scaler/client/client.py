@@ -314,7 +314,7 @@ class Client:
                     tags=tags,
                 ),
                 is_delayed=not block,
-                group_task_id=None,
+                group_task_id=graph_task.task_id,
             )
         )
         for future in compute_futures.values():

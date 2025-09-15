@@ -3,8 +3,8 @@ from typing import Awaitable, Callable, Optional
 
 from scaler.protocol.python.mixins import Message
 from scaler.protocol.python.status import BinderStatus
-from scaler.utility.mixins import Looper, Reporter
 from scaler.utility.identifiers import ObjectID
+from scaler.utility.mixins import Looper, Reporter
 
 
 class AsyncBinder(Looper, Reporter, metaclass=abc.ABCMeta):
@@ -152,4 +152,3 @@ class SyncSubscriber(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def run(self) -> None:
         raise NotImplementedError()
-

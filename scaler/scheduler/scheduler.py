@@ -4,18 +4,17 @@ import logging
 
 import zmq.asyncio
 
-from scaler.io.mixins import AsyncBinder, AsyncConnector, AsyncObjectStorageConnector
 from scaler.io.async_binder import ZMQAsyncBinder
 from scaler.io.async_connector import ZMQAsyncConnector
 from scaler.io.async_object_storage_connector import PyAsyncObjectStorageConnector
 from scaler.io.config import CLEANUP_INTERVAL_SECONDS, STATUS_REPORT_INTERVAL_SECONDS
+from scaler.io.mixins import AsyncBinder, AsyncConnector, AsyncObjectStorageConnector
 from scaler.protocol.python.common import ObjectStorageAddress
 from scaler.protocol.python.message import (
     ClientDisconnect,
     ClientHeartbeat,
     DisconnectRequest,
     GraphTask,
-    GraphTaskCancel,
     InformationRequest,
     ObjectInstruction,
     Task,
@@ -163,10 +162,6 @@ class Scheduler:
             await self._graph_controller.on_graph_task(ClientID(source), message)
             return
 
-        if isinstance(message, GraphTaskCancel):
-            await self._graph_controller.on_graph_task_cancel(ClientID(source), message)
-            return
-
         # =====================================================================================
         # task manager
         if isinstance(message, Task):
@@ -174,7 +169,10 @@ class Scheduler:
             return
 
         if isinstance(message, TaskCancel):
-            await self._task_controller.on_task_cancel(ClientID(source), message)
+            if self._graph_controller.is_graph_subtask(message.task_id):
+                await self._graph_controller.on_graph_task_cancel(message)
+            else:
+                await self._task_controller.on_task_cancel(ClientID(source), message)
             return
 
         if isinstance(message, TaskCancelConfirm):
