@@ -90,7 +90,7 @@ class ClientFutureManager(FutureManager):
 
                 case TaskCancelConfirmType.CancelNotFound:
                     logging.error(f"{task_id!r}: task to cancel not found")
-                    future.set_exception(InvalidStateError())
+                    future.set_canceled()
 
                 case TaskCancelConfirmType.CancelFailed:
                     logging.error(f"{task_id!r}: task cancel failed")
