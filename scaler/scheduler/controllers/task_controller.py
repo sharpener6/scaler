@@ -94,7 +94,6 @@ class VanillaTaskController(TaskController, Looper, Reporter):
         await self.__state_inactive(task_id=task.task_id, state_machine=state_machine, task=task)
 
     async def on_task_cancel(self, client_id: ClientID, task_cancel: TaskCancel):
-        print(f"{task_cancel.task_id!r}: cancel task")
         state_machine = self._task_state_manager.get_state_machine(task_cancel.task_id)
         if state_machine is None:
             logging.error(f"{task_cancel.task_id!r}: task not exists while received TaskCancel, send TaskCancelConfirm")
