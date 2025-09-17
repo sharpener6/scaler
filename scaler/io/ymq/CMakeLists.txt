@@ -65,9 +65,9 @@ install(TARGETS cc_ymq
 
 if(LINUX)
   find_package(Python3 COMPONENTS Development.Module REQUIRED)
-  
+
   add_library(ymq SHARED)
-  
+
   set_target_properties(ymq PROPERTIES  PREFIX "")
   set_target_properties(ymq PROPERTIES LINKER_LANGUAGE CXX)
 find_package(Python3 COMPONENTS Development.Module REQUIRED)
@@ -83,6 +83,8 @@ target_sources(ymq PRIVATE pymod_ymq/async.h
                            pymod_ymq/ymq.cpp
 )
 target_include_directories(ymq PRIVATE ${Python3_INCLUDE_DIRS})
+
+target_link_options(ymq PRIVATE "-Wl,-Bstatic")
 target_link_libraries(ymq PRIVATE cc_ymq
                           PRIVATE ${Python3_LIBRARIES}
 )
@@ -102,12 +104,14 @@ install(TARGETS ymq
                              pymod_ymq/ymq.cpp
   )
   target_include_directories(ymq PRIVATE ${Python3_INCLUDE_DIRS})
+
+  target_link_options(ymq PRIVATE "-Wl,-Bstatic")
   target_link_libraries(ymq PRIVATE cc_ymq
                             PRIVATE ${Python3_LIBRARIES}
   )
-  
+
   target_link_options(ymq PRIVATE "-Wl,-rpath,$ORIGIN")
-  
+
   install(TARGETS ymq
          LIBRARY DESTINATION scaler/io/ymq)
 endif()
