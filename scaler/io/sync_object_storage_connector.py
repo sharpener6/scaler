@@ -160,7 +160,7 @@ class PySyncObjectStorageConnector(SyncObjectStorageConnector):
         # If the message is small enough, first try to send it at once with sendmsg(). This would ensure the message can
         # be transmitted within a single TCP segment.
         if total_size < MAX_CHUNK_SIZE:
-            sent = self._socket.sendmsg(buffers)
+            sent = self._socket.sendmsg(buffers)  # type: ignore[union-attr]  # Windows Only
 
             if sent <= 0:
                 self.__raise_connection_failure()

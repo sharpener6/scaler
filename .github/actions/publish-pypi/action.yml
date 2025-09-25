@@ -9,6 +9,7 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # Linux Only
     - name: Install Python Packages
       if: inputs.os == 'Linux'
       shell: bash

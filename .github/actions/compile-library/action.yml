@@ -9,12 +9,14 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # Linux Only
     - name: Build and test C++ Components (Linux)
       if: inputs.os == 'Linux'
       shell: bash
       run: |
         CXX=$(which g++-14) ./scripts/build.sh
 
+    # Windows Only
     - name: Build and test C++ Components (Windows)
       if: inputs.os == 'Windows'
       shell: pwsh

@@ -30,7 +30,6 @@ runs:
         uv pip install --system --upgrade pip
 
     - name: Cache Library Install
-      if: inputs.os == 'Linux'
       id: cache-library
       uses: actions/cache@v4
       with:
@@ -38,23 +37,25 @@ runs:
           capnproto-*
         key: ${{ inputs.os }}-${{ hashFiles('scripts/download_install_libraries.*') }}
 
+    # Linux Only
     - name: Download/Compile Libraries (Linux)
       shell: bash
       if: (inputs.os == 'Linux') && (steps.cache-library.outputs.cache-hit != 'true')
       run: |
         sudo ./scripts/download_install_libraries.sh capnp compile
 
-    - name: Download/Compile Libraries (Windows)
-      shell: pwsh
-      if: (inputs.os == 'Windows') && (steps.cache-boost-windows.outputs.cache-hit != 'true')
-      run: |
-        ./scripts/download_install_libraries.ps1 capnp compile
-
     - name: Install Libraries (Linux)
       shell: bash
       if: inputs.os == 'Linux'
       run: |
         sudo ./scripts/download_install_libraries.sh capnp install
+
+    # Windows Only
+    - name: Download/Compile Libraries (Windows)
+      shell: pwsh
+      if: (inputs.os == 'Windows') && (steps.cache-boost-windows.outputs.cache-hit != 'true')
+      run: |
+        ./scripts/download_install_libraries.ps1 capnp compile
 
     - name: Install Libraries (Windows)
       shell: pwsh

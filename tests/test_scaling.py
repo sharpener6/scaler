@@ -107,7 +107,7 @@ class TestScaling(unittest.TestCase):
         os.kill(scheduler.pid, signal.SIGINT)
         scheduler.join()
 
-        os.kill(object_storage.pid, signal.SIGKILL)
+        os.kill(object_storage.pid, signal.SIGKILL)  # type: ignore[attr-defined]  # Windows Only
         object_storage.join()
 
         os.kill(webhook_server.pid, signal.SIGINT)

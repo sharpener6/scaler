@@ -38,10 +38,9 @@ if ($dependency -eq "boost") {
         # Necessary exe because of local dev env
         curl.exe -O $url --retry 100 --retry-max-time 3600
         tar -xzf $BOOST_PACKAGE_NAME
-        Rename-Item -Path $BOOST_FOLDER_NAME -NewName "boost"
     }
     elseif ($action -eq "install") {
-        Copy-Item -Recurse -Path "boost\boost" -Destination "$PREFIX\include\boost"
+        Copy-Item -Recurse -Path "$BOOST_FOLDER_NAME\boost" -Destination "$PREFIX\include\boost"
         Write-Host "Installed Boost into $PREFIX\include\boost"
     }
     else {
@@ -60,17 +59,15 @@ elseif ($dependency -eq "capnp") {
         # Download and extract Cap'n Proto
         curl.exe -O $url --retry 100 --retry-max-time 3600
         tar -xzf $CAPNP_PACKAGE_NAME
-        Rename-Item -Path $CAPNP_FOLDER_NAME -NewName "capnp"
 
         # Configure and build with Visual Studio using CMake
-        Set-Location -Path "capnp"
+        Set-Location -Path $CAPNP_FOLDER_NAME
         cmake -G "Visual Studio 17 2022" -B build
         cmake --build build --config Release
     }
     elseif ($action -eq "install") {
         $CAPNP_FOLDER_NAME = "capnproto-c++-$CAPNP_VERSION"
-        Rename-Item -Path $CAPNP_FOLDER_NAME -NewName "capnp"
-        Set-Location -Path "capnp"
+        Set-Location -Path $CAPNP_FOLDER_NAME
         cmake --install build --config Release --prefix $PREFIX
         Write-Host "Installed capnp into $PREFIX"
     }
@@ -78,9 +75,9 @@ elseif ($dependency -eq "capnp") {
         Write-Host "Argument needs to be either compile or install"
         exit 1
     }
+}
 
 else {
     Write-Host "Usage: .\download_install_dependencies.ps1 [boost|capnp] [--prefix=DIR]"
     exit 1
 }
-
