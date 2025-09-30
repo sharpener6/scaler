@@ -9,6 +9,7 @@
 #include "scaler/io/ymq/configuration.h"
 #include "scaler/io/ymq/epoll_context.h"
 #include "scaler/io/ymq/iocp_context.h"
+#include "scaler/io/ymq/kqueue_context.h"
 
 namespace scaler {
 namespace ymq {
@@ -27,7 +28,7 @@ concept EventLoopBackend = requires(Backend backend, Backend::Function f) {
     { backend.removeFdFromLoop(int {}) } -> std::same_as<void>;
 };
 
-template <EventLoopBackend Backend = EpollContext>
+template <EventLoopBackend Backend>
 class EventLoop {
     Backend backend;
 

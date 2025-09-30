@@ -8,12 +8,19 @@
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"   # e.g. linux or darwin
 ARCH="$(uname -m)"                              # e.g. x86_64 or arm64
 
+if [ "$OS" == "darwin" ]; then
+    export CC="/opt/homebrew/bin/gcc-15"
+    export CXX="/opt/homebrew/bin/g++-15"
+fi
+
 BUILD_DIR="build_${OS}_${ARCH}"
 BUILD_PRESET="${OS}-${ARCH}"
 
+# clean up
 rm -rf $BUILD_DIR
 rm -f scaler/protocol/capnp/*.c++
 rm -f scaler/protocol/capnp/*.h
+
 echo "Build directory: $BUILD_DIR"
 echo "Build preset: $BUILD_PRESET"
 

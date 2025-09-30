@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <exception>
 #include <future>
+#include <unistd.h>
 
 #include "scaler/io/ymq/configuration.h"
 #include "scaler/io/ymq/error.h"

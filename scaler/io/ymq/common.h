@@ -1,9 +1,9 @@
 #pragma once
 
 // C
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #include <execinfo.h>
-#endif  // __linux__
+#endif  // __linux__ || __APPLE__
 
 // C++
 #include <cstdlib>
@@ -17,7 +17,7 @@ using Errno = int;
 
 inline void print_trace(void)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
     void* array[10];
     char** strings;
     int size, i;
@@ -31,7 +31,7 @@ inline void print_trace(void)
     }
 
     free(strings);
-#endif  // __linux__
+#endif  // __linux__ || __APPLE__
 }
 
 [[nodiscard("Memory is allocated but not used, likely causing a memory leak")]]

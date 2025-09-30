@@ -1,11 +1,23 @@
 #pragma once
 
 // System
+#ifdef __linux__
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
-#include <sys/socket.h>
 #include <sys/timerfd.h>
+#endif  // __linux__
+
+#ifdef __APPLE__
+#include <sys/event.h>
+#endif  // __APPLE__
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#else
+#include <sys/socket.h>
 #include <unistd.h>
+#endif  // _WIN32
 
 // C
 #include <cerrno>
@@ -25,9 +37,13 @@ class FileDescriptor {
 public:
     ~FileDescriptor() noexcept(false)
     {
-        if (auto code = close(fd) < 0)
+#ifdef _WIN32
+        if (fd >= 0 && closesocket(fd) < 0)
+            throw std::system_error(WSAGetLastError(), std::system_category(), "Failed to close file descriptor");
+#else
+        if (fd >= 0 && close(fd) < 0)
             throw std::system_error(errno, std::system_category(), "Failed to close file descriptor");
-
+#endif
         this->fd = -1;
     }
 
@@ -44,7 +60,11 @@ public:
     {
         if (this != &other) {
             if (fd >= 0) {
+#ifdef _WIN32
+                closesocket(fd);
+#else
                 close(fd);  // close current fd
+#endif
             }
             fd       = other.fd;
             other.fd = -1;  // prevent double close
@@ -54,16 +74,23 @@ public:
 
     static std::expected<FileDescriptor, Errno> socket(int domain, int type, int protocol)
     {
-        if (int fd = ::socket(domain, type, protocol) < 0) {
+        int fd = ::socket(domain, type, protocol);
+        if (fd < 0) {
+#ifdef _WIN32
+            return std::unexpected {WSAGetLastError()};
+#else
             return std::unexpected {errno};
+#endif
         } else {
             return FileDescriptor(fd);
         }
     }
 
+#ifdef __linux__
     static std::expected<FileDescriptor, Errno> eventfd(int initval, int flags)
     {
-        if (int fd = ::eventfd(initval, flags) < 0) {
+        int fd = ::eventfd(initval, flags);
+        if (fd < 0) {
             return std::unexpected {errno};
         } else {
             return FileDescriptor(fd);
@@ -72,7 +99,8 @@ public:
 
     static std::expected<FileDescriptor, Errno> timerfd(clockid_t clock, int flags)
     {
-        if (int fd = ::timerfd_create(clock, flags) < 0) {
+        int fd = ::timerfd_create(clock, flags);
+        if (fd < 0) {
             return std::unexpected {errno};
         } else {
             return FileDescriptor(fd);
@@ -81,17 +109,35 @@ public:
 
     static std::expected<FileDescriptor, Errno> epollfd()
     {
-        if (int fd = ::epoll_create1(0) < 0) {
+        int fd = ::epoll_create1(0);
+        if (fd < 0) {
             return std::unexpected {errno};
         } else {
             return FileDescriptor(fd);
         }
     }
+#endif  // __linux__
+
+#ifdef __APPLE__
+    static std::expected<FileDescriptor, Errno> kqueuefd()
+    {
+        int fd = ::kqueue();
+        if (fd < 0) {
+            return std::unexpected {errno};
+        } else {
+            return FileDescriptor(fd);
+        }
+    }
+#endif  // __APPLE__
 
     std::optional<Errno> listen(int backlog)
     {
         if (::listen(fd, backlog) < 0) {
+#ifdef _WIN32
+            return WSAGetLastError();
+#else
             return errno;
+#endif
         } else {
             return std::nullopt;
         }
@@ -99,8 +145,13 @@ public:
 
     std::expected<FileDescriptor, Errno> accept(sockaddr& addr, socklen_t& addrlen)
     {
-        if (auto fd2 = ::accept(fd, &addr, &addrlen) < 0) {
+        int fd2 = ::accept(fd, &addr, &addrlen);
+        if (fd2 < 0) {
+#ifdef _WIN32
+            return std::unexpected {WSAGetLastError()};
+#else
             return std::unexpected {errno};
+#endif
         } else {
             return FileDescriptor(fd2);
         }
@@ -109,7 +160,11 @@ public:
     std::optional<Errno> connect(const sockaddr& addr, socklen_t addrlen)
     {
         if (::connect(fd, &addr, addrlen) < 0) {
+#ifdef _WIN32
+            return WSAGetLastError();
+#else
             return errno;
+#endif
         } else {
             return std::nullopt;
         }
@@ -118,12 +173,17 @@ public:
     std::optional<Errno> bind(const sockaddr& addr, socklen_t addrlen)
     {
         if (::bind(fd, &addr, addrlen) < 0) {
+#ifdef _WIN32
+            return WSAGetLastError();
+#else
             return errno;
+#endif
         } else {
             return std::nullopt;
         }
     }
 
+#ifndef _WIN32
     std::expected<ssize_t, Errno> read(void* buf, size_t count)
     {
         ssize_t n = ::read(fd, buf, count);
@@ -143,7 +203,9 @@ public:
             return n;
         }
     }
+#endif  // !_WIN32
 
+#ifdef __linux__
     std::optional<Errno> eventfd_signal()
     {
         uint64_t u = 1;
@@ -194,10 +256,33 @@ public:
 
     std::expected<int, Errno> epoll_wait(epoll_event* events, int maxevents, int timeout)
     {
-        if (auto n = ::epoll_wait(fd, events, maxevents, timeout) < 0) {
-            return errno;
+        int n = ::epoll_wait(fd, events, maxevents, timeout);
+        if (n < 0) {
+            return std::unexpected {errno};
         } else {
             return n;
         }
     }
+#endif  // __linux__
+
+#ifdef __APPLE__
+    std::optional<Errno> kevent_ctl(const struct kevent* changelist, int nchanges)
+    {
+        if (::kevent(fd, changelist, nchanges, nullptr, 0, nullptr) < 0) {
+            return errno;
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    std::expected<int, Errno> kevent_wait(struct kevent* eventlist, int nevents, const struct timespec* timeout)
+    {
+        int n = ::kevent(fd, nullptr, 0, eventlist, nevents, timeout);
+        if (n < 0) {
+            return std::unexpected {errno};
+        } else {
+            return n;
+        }
+    }
+#endif  // __APPLE__
 };

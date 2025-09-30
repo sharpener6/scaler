@@ -94,11 +94,6 @@ static PyGetSetDef PyBytesYMQ_properties[] = {
     {nullptr, nullptr, nullptr, nullptr, nullptr},  // Sentinel
 };
 
-static PyBufferProcs PyBytesYMQBufferProcs = {
-    .bf_getbuffer     = (getbufferproc)PyBytesYMQ_getbuffer,
-    .bf_releasebuffer = (releasebufferproc)PyBytesYMQ_releasebuffer,
-};
-
 static PyType_Slot PyBytesYMQ_slots[] = {
     {Py_tp_init, (void*)PyBytesYMQ_init},
     {Py_tp_dealloc, (void*)PyBytesYMQ_dealloc},

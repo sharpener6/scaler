@@ -7,6 +7,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif  // _WIN32
+#ifdef __APPLE__
+#include <sys/event.h>
+#endif  // __APPLE__
 
 #include <concepts>
 #include <cstdint>  // uint64_t
@@ -22,12 +25,11 @@ namespace ymq {
 class EventLoopThread;
 
 // TODO: Add the _fd back
-#ifdef _WIN32
+#if defined(_WIN32)
 class EventManager: public OVERLAPPED {
-#endif  // _WIN32
-#ifdef __linux__
-    class EventManager {
-#endif  // __linux
+#elif defined(__linux__) || defined(__APPLE__)
+class EventManager {
+#endif
         // FileDescriptor _fd;
 
     public:
@@ -59,6 +61,22 @@ class EventManager: public OVERLAPPED {
                 }
             }
 #endif  // _WIN32
+#ifdef __APPLE__
+            if constexpr (std::same_as<Configuration::PollingContext, KqueueContext>) {
+                if (events & EV_EOF) {
+                    onClose();
+                }
+                if (events & EV_ERROR) {
+                    onError();
+                }
+                if (events & EVFILT_READ) {
+                    onRead();
+                }
+                if (events & EVFILT_WRITE) {
+                    onWrite();
+                }
+            }
+#endif  // __APPLE__
         }
 
         // User that registered them should have everything they need

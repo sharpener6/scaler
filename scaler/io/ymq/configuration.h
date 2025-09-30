@@ -21,6 +21,7 @@ namespace ymq {
 
 class EpollContext;
 class IocpContext;
+class KqueueContext;
 class Message;
 class IOSocket;
 
@@ -44,6 +45,9 @@ struct Configuration {
 #ifdef _WIN32
     using PollingContext = IocpContext;
 #endif  // _WIN32
+#ifdef __APPLE__
+    using PollingContext = KqueueContext;
+#endif  // __APPLE__
 
     using IOSocketIdentity                = std::string;
     using SendMessageCallback             = MoveOnlyFunction<void(std::expected<void, Error>)>;

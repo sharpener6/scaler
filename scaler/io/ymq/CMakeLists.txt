@@ -9,6 +9,9 @@ add_library(ymq_objs OBJECT
     iocp_context.h
     iocp_context.cpp
 
+    kqueue_context.h
+    kqueue_context.cpp
+
     event_loop.h
 
     event_loop_thread.h
@@ -56,7 +59,7 @@ add_library(ymq_objs OBJECT
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/scaler/io/ymq)
 
-if(LINUX)
+if(LINUX OR APPLE)
     # ymq python =======================================================================================================
     find_package(Python3 COMPONENTS Development.Module REQUIRED)
 
@@ -74,8 +77,7 @@ if(LINUX)
 
     # target_include_directories(py_ymq PRIVATE ${Python3_INCLUDE_DIRS})
     target_link_libraries(py_ymq PRIVATE
-        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wl,-Bstatic> ymq_objs
-        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wl,-Bdynamic>
+        ymq_objs
         Python3::Module
     )
 
