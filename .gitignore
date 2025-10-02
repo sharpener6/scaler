@@ -19,8 +19,8 @@ eggs/
 .venv/
 venv*/
 .vscode/
+capnproto-c++*/
 
-dask-worker-space/*
 .pre-commit-config.yaml
 
 .DS_Store

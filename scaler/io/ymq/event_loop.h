@@ -1,15 +1,9 @@
 #pragma once
 
-// C++
 #include <concepts>
 #include <cstdint>  // uint64_t
-#include <functional>
 
-// First-party
-#include "scaler/io/ymq/configuration.h"
 #include "scaler/io/ymq/epoll_context.h"
-#include "scaler/io/ymq/iocp_context.h"
-#include "scaler/io/ymq/kqueue_context.h"
 
 namespace scaler {
 namespace ymq {

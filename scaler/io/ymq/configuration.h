@@ -1,6 +1,5 @@
 #pragma once
 
-// C++
 #include <expected>
 #include <functional>
 #include <memory>

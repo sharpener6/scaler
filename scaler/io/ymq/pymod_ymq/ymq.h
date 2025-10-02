@@ -9,7 +9,6 @@
 
 // C++
 #include <expected>
-#include <format>
 #include <functional>
 #include <string>
 #include <string_view>

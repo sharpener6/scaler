@@ -6,12 +6,10 @@
 #endif  // __linux__ || __APPLE__
 
 // C++
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <format>
-#include <iostream>
-#include <source_location>
-#include <string>
+#include <stdio.h>
 
 using Errno = int;
 

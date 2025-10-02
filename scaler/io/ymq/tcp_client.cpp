@@ -17,7 +17,6 @@
 
 #include <cerrno>
 #include <chrono>
-#include <functional>
 #include <memory>
 
 #include "scaler/io/ymq/error.h"
@@ -109,7 +108,7 @@ void TcpClient::onCreated()
     }
 
     if (errno == EINPROGRESS) {
-#ifdef __linux__
+#if defined(__linux__)
         _eventLoopThread->_eventLoop.addFdToLoop(sockfd, EPOLLOUT | EPOLLET, this->_eventManager.get());
 #elif defined(__APPLE__)
         _eventLoopThread->_eventLoop.addFdToLoop(sockfd, EVFILT_WRITE, this->_eventManager.get());

@@ -11,8 +11,6 @@
 // clang-format on
 #endif  // _WIN32
 
-// C++
-#include <cstdlib>
 #include <vector>
 
 #include "scaler/io/ymq/error.h"

@@ -18,7 +18,6 @@ add_library(ymq_objs OBJECT
     event_loop_thread.cpp
 
     event_manager.h
-    # file_descriptor.h
 
     message_connection.h
     message_connection_tcp.h

@@ -14,7 +14,6 @@
 #include <concepts>
 #include <cstdint>  // uint64_t
 #include <functional>
-#include <memory>
 
 // First-party
 #include "scaler/io/ymq/configuration.h"
@@ -30,8 +29,6 @@ class EventManager: public OVERLAPPED {
 #elif defined(__linux__) || defined(__APPLE__)
 class EventManager {
 #endif
-        // FileDescriptor _fd;
-
     public:
         void onEvents(uint64_t events)
         {
