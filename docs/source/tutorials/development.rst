@@ -26,7 +26,7 @@ In general, prefer the most specific name unless a conventional name is already 
 Bad examples:
  * data1, data2
  * a, b, c, d, e
- * plain_df
+ * df
  * function1
  * array
 
