@@ -1,192 +1,193 @@
-=====================
-Development Guideline
-=====================
+=======================
+Development Guidelines
+=======================
 
 .. contents:: Table of Contents
     :depth: 2
 
-Please be aware that to contribute the code in this repo, a lot rules are opionated, if you don't follow the guideline,
-likely the pull request will not get accepted
+Please be aware that contributing code to this repo requires following several opinionated rules.
+Pull requests that ignore the guidelines are unlikely to be accepted.
 
-The development guideline will keep updated if some the undefined rules are missing or some rules are not good
+These development guidelines will be updated whenever we need to clarify missing rules or adjust existing guidance.
 
-This project is consists of both python guidelines and C++ code guidelines, as they are hybrids
+This project consists of both Python and C++ code, so the guidelines cover expectations for each language.
 
-This coding guideline should be used by both Human and AI to follow.
+Both humans and AI contributors should follow these guidelines.
 
-Common Guideline
-----------------
+Common Guidelines
+-----------------
 
 Naming
 ~~~~~~
-Names should be crystal clear inside of the code context, context can be function, module(file), library
-In general names should be as specific as possible, unless the names are conventional
+
+Names should be crystal clear within the code context. That context can be a function, module (file), or library.
+In general, prefer the most specific name unless a conventional name is already established.
 
 Bad examples:
  * data1, data2
  * a, b, c, d, e
- * plain df
+ * plain_df
  * function1
  * array
 
-Please also avoid abbreviations as much as possible, abbreiations make the code unreadable and difficult to debug and
-maintain, unless they are well known, or it's common sense in the industry
+Avoid abbreviations whenever possible. Abbreviations make the code harder to read and debug unless the term is widely
+known or an industry standard.
 
 Numbers
 ~~~~~~~
-Constant numbers should not be in the code, all constant number should have a variable name, which tells you what is it
-doing, in short, magical number is not allowed
 
-Object Oriented Programming (OOP)
+Magic numbers are not allowed. Every constant should be assigned to a well-named variable that explains its purpose.
+
+Object-Oriented Programming (OOP)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-OOP is a feature in both C++ and Python language, people should use OOP, We encourage people to use class to
-encapsulate the members if those variables should come together.
+OOP is available in both C++ and Python. Use classes to encapsulate related behavior and data when those pieces belong
+together.
 
-**We allow subtyping, But we don't allow inheritance**
- * subtyping: allowed, override member functions that has no implementatons (it called interface in c++)
- * inheritance: disallowed, means overriding function that has implmentations
+**We allow subtyping, but we do not allow inheritance.**
+ * Subtyping: allowed - override member functions that have no implementations (interfaces in C++).
+ * Inheritance: disallowed - do not override functions that already provide implementations.
 
-Any class method, or static method in python is allowed, but class method has no difference from module function, class
-method or module method should be defined in the right scope if it's tied to class or module
+Class and static methods are allowed in Python. Remember that class methods provide no benefit over module-level
+functions unless the behavior is tied to class-level state. Place the function in the scope that matches its
+responsibility.
 
 Functions
 ~~~~~~~~~
 
- * please refactoring the code as much as possible, except for the test cases, we can allow some duplication if the test
-   cases contain same or similar example inputs, but the utility functions used by unit test should still be refactored
- * complex if condition filtering logic should be written in guard clauses way
+ * Please refactor aggressively, except in test cases where limited duplication can aid readability.
+   Shared test helpers should still live in utility functions.
+ * Express complex conditional filtering logic with guard clauses to improve readability.
 
-Python Guideline
-----------------
+Python Guidelines
+-----------------
 
- * We follow PEP8 very closely, only exception is we use line width 120 instead of 80, as the coding style in PEP8 is
-   very well defined, I will not spend time here to explain, please google and search on PEP8
- * Python type hinting is mandatory for all function arguments and return type, and it will be used by MyPy to check
- * We use black formatter, the command line arguments are `black -l 120 -C`
- * all python imports should be absolute import
- * we don't allow any content in `__init__.py` unless special cases like project root `__init__.py` for library user
-   convenience
+ * We follow PEP 8 closely, with the exception of a 120-character line width. Refer to PEP 8 for the remaining details.
+ * Python type hints are mandatory for all function arguments and return types, and mypy will check them.
+ * We use the Black formatter; run `black -l 120 -C`.
+ * All Python imports must be absolute.
+ * We do not allow any content in `__init__.py` files unless a special case (such as the project root)
+   requires it for user convenience.
 
 Test Cases
 ~~~~~~~~~~
 
- * Python test cases should use standard python unittest module, and each class should be one python file and named with
-   prefix `test_*.py`
- * unit test structure should be mirror to code structure as tests directory is in the root repo directory
+ * Python test cases should use the standard `unittest` module, and each test class should live in its own Python file
+   named with the `test_*.py` prefix.
+ * Mirror the unit-test directory structure to the code structure because the `tests` directory lives at the repo root.
 
-C++ Guideline
--------------
+C++ Guidelines
+--------------
 
 Naming
 ~~~~~~
 
-Please use CamelCase for naming:
- * for namespace, classes, please capitalize first charactor, e.g.:
-   * SomeClass
-   * LongNameClass
- * for global variables, or macro, use all capitalized characters, for system or thrid party library definitions, are
-   exempt from this rule:
-   * GLOBAL_VARIABLE
- * for variable, function names, please use camelCase, with first charactor lower case:
-   * addSomeValue
-   * deleteSomeValue
- * for the abbreviation word, we should name them as all capitalized, e.g.:
-   * use TCPAcceptor instead of TcpAcceptor
-   * use IOSocket instead of IoSocket
+Please use PascalCase for namespaces and classes. Capitalize the first character, for example:
+ * SomeClass
+ * LongNameClass
 
-The file names should be snake cased, for headers please use extention .h, for sources, please use extention .cpp:
+Use all capital letters for global variables or macros. System or third-party library definitions are exempt from this
+rule:
+ * GLOBAL_VARIABLE
 
+Use camelCase for variable and function names, with the first character lower case:
+ * addSomeValue
+ * deleteSomeValue
+
+Keep abbreviations uppercase, for example:
+ * TCPAcceptor instead of TcpAcceptor
+ * IOSocket instead of IoSocket
+
+File names should use snake_case. Use the `.h` extension for headers and `.cpp` for source files:
  * header files: message_connection.h
  * source files: message_connection.cpp
 
 Formatting
 ~~~~~~~~~~
 
-Please use `.clang-format` on the root repo directory for code formatting
+Please use the `.clang-format` file in the repo root for code formatting.
 
-Name Space
+Namespaces
 ~~~~~~~~~~
 
- * please don't use using namespace like `using namespace std;`
- * Please always use prefixed namespace like `std::cout`
+ * Do not add `using namespace` directives like `using namespace std;`.
+ * Always use fully qualified names such as `std::cout`.
 
 Includes
 ~~~~~~~~
 
- * please remove all the includes files if no functions get used
- * please always include the header files as long as current file is used some function from that header file, indirect
-   include is not good, for example:
-   * there files `common.h`, `some_module.h`, `application.cpp`
-   * at the top of `common.h`, it has line for `#include <cstring>`
-   * at the top of `some_module.h`, it has line for `#include "common.h"`
-   * at the top of `application.cpp`, it has line `#include <some_module.h>`
-   * but `application.cpp` uses function in `cstring`, even it can compile because it indirectly includes `<cstring>`
-     because of `common.h`, this is not good, please explicitly include `cstring` in `application.cpp`
+ * Remove include files when none of their symbols are used.
+ * Always include the header that defines the symbols you rely on; avoid depending on transitive includes. For example:
+   * There are files `common.h`, `some_module.h`, and `application.cpp`.
+   * At the top of `common.h`, there is `#include <cstring>`.
+   * At the top of `some_module.h`, there is `#include "common.h"`.
+   * At the top of `application.cpp`, there is `#include "some_module.h"`.
+   * Even though `application.cpp` compiles because `<cstring>` is indirectly included through `common.h`, explicitly
+     include `<cstring>` in `application.cpp`.
 
 Struct/Class
 ~~~~~~~~~~~~
 
-In C++, struct and class are basically the same, except the default private/public permission. please use `struct` if
-you want use data structure with minimal helper functions, use class if it's stateful data structure, don't directly
-expose fields when use class, always use setter and getter.
+In C++, structs and classes are the same except for default access. Use `struct` for passive data structures with minimal
+helpers. Use `class` for stateful types, and do not expose fields directly. Provide setters and getters instead.
 
 .. code:: cpp
+
     struct Address {
         std::string domain;
         int port;
     };
 
-    // If data structure has internal states not meant for outsider to use, provide methods that changes states, instead
-    // of direct expose structure
-
+    // If a data structure has internal state that consumers should not mutate directly, provide methods to modify that
+    // state instead of exposing the members.
     class Client {
     public:
         void send(const std::vector<uint8_t>& buffer);
 
-        int get_message_count();
+        int getMessageCount() const;
 
     private:
-        int message_count;
+        int messageCount;
     };
-
 
 Code Layout
 ~~~~~~~~~~~
 
-For any h/cpp file, the sequence should be:
- * system libraries includes
- * standard libraries includes
- * third party libraries includes
- * in library includes
+For any header or source file, order elements as follows:
+ * system library includes
+ * standard library includes
+ * third-party library includes
+ * in-library includes
  * global variables
  * API classes and functions
- * internal functions that not meant to be used outside of the file
+ * internal functions that are not meant to be used outside the file
 
-the class definition should be in following order:
+Class definitions should follow this order:
 
 .. code:: cpp
-    // in the class, it should be always first public, then protected, then private sections
-    // the keyword using, should be always in the top then contructors copy/move constructor, destructor
-    // the function definitions should come first, then member variables
+
+    // List public members first, then protected, then private sections.
+    // Place using declarations at the top, followed by constructors, copy/move constructors, and the destructor.
+    // Declare member functions before member variables.
     class Foobar {
     public:
-        // using types should go first
-        using Type = namespace::some_type;
+        // Using types should go first.
+        using Type = some_namespace::SomeType;
 
         Foobar();
-        Foobar(const std::string& foobar) _foobar(foobar);
+        Foobar(const std::string& foobar) : _foobar(foobar) {}
         ~Foobar();
 
-        const std::string& getCurrentFoobar();
+        const std::string& getCurrentFoobar() const;
 
     protected:
         void someProtectedMethod();
 
-        int _SomeProtectedVariable;
+        int _someProtectedVariable;
 
     private:
-        void SomePrivateMethod();
+        void somePrivateMethod();
 
-        int _SomePrivateVariable;
+        std::string _foobar;
+        int _somePrivateVariable;
     };
