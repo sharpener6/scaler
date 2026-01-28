@@ -15,3 +15,7 @@ endif()
 add_subdirectory(uv_ymq)
 
 add_subdirectory(utility)
+
+if(LINUX)
+  add_subdirectory(top)
+endif()

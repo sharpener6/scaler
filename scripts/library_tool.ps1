@@ -2,6 +2,7 @@
 $BOOST_VERSION = "1.88.0"
 $CAPNP_VERSION = "1.1.0"
 $UV_VERSION = "1.51.0"
+$FTXUI_VERSION = "5.0.0"
 
 $THIRD_PARTY_DIRECTORY = ".\thirdparties"
 
@@ -11,7 +12,7 @@ $THIRD_PARTY_COMPILED = "$THIRD_PARTY_DIRECTORY\compiled"
 $PREFIX = "C:\Program Files"
 
 function showHelp {
-    Write-Host "Usage: .\library_tool.ps1 [boost|capnp|libuv] [download|compile|install] [--prefix=DIR]"
+    Write-Host "Usage: .\library_tool.ps1 [boost|capnp|libuv|ftxui] [download|compile|install] [--prefix=DIR]"
     exit 1
 }
 
@@ -142,8 +143,61 @@ elseif ($dependency -eq "libuv")
     {
         $oldDir = Get-Location
         Set-Location -Path "$THIRD_PARTY_COMPILED\$UV_FOLDER_NAME"
-        cmake --install build --config Release
+        cmake --install build --config Release --prefix $PREFIX
         Write-Host "Installed libuv into $PREFIX"
+        Set-Location $oldDir
+    }
+    else
+    {
+        Write-Host "Argument needs to be download or compile or install"
+        showHelp
+    }
+}
+
+# Download, compile, or install FTXUI
+elseif ($dependency -eq "ftxui")
+{
+    $FTXUI_FOLDER_NAME = "ftxui-$FTXUI_VERSION"
+
+    if ($action -eq "download")
+    {
+        mkdir "$THIRD_PARTY_DOWNLOADED" -Force
+        $url = "https://github.com/ArthurSonzogni/FTXUI/archive/refs/tags/v$FTXUI_VERSION.tar.gz"
+        curl.exe --retry 100 --retry-max-time 3600 -L $url -o "$THIRD_PARTY_DOWNLOADED\$FTXUI_FOLDER_NAME.tar.gz"
+        Write-Host "Downloaded ftxui into $THIRD_PARTY_DOWNLOADED\$FTXUI_FOLDER_NAME.tar.gz"
+    }
+    elseif ($action -eq "compile")
+    {
+        Remove-Item -Path "$THIRD_PARTY_COMPILED\$FTXUI_FOLDER_NAME" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$THIRD_PARTY_COMPILED\FTXUI-$FTXUI_VERSION" -Recurse -Force -ErrorAction SilentlyContinue
+        mkdir "$THIRD_PARTY_COMPILED" -Force
+        tar -xzvf "$THIRD_PARTY_DOWNLOADED\$FTXUI_FOLDER_NAME.tar.gz" -C "$THIRD_PARTY_COMPILED"
+
+        # GitHub extracts to FTXUI-X.Y.Z (uppercase), rename to lowercase
+        if (Test-Path "$THIRD_PARTY_COMPILED\FTXUI-$FTXUI_VERSION")
+        {
+            Rename-Item -Path "$THIRD_PARTY_COMPILED\FTXUI-$FTXUI_VERSION" -NewName "$FTXUI_FOLDER_NAME"
+        }
+
+        # Configure and build with Visual Studio using CMake
+        $oldDir = Get-Location
+        Set-Location -Path "$THIRD_PARTY_COMPILED\$FTXUI_FOLDER_NAME"
+        cmake -G "Visual Studio 17 2022" -B build `
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" `
+            -DBUILD_SHARED_LIBS=OFF `
+            -DFTXUI_BUILD_EXAMPLES=OFF `
+            -DFTXUI_BUILD_TESTS=OFF `
+            -DFTXUI_BUILD_DOCS=OFF
+        cmake --build build --config Release
+        Write-Host "Compiled ftxui into $THIRD_PARTY_COMPILED\$FTXUI_FOLDER_NAME"
+        Set-Location $oldDir
+    }
+    elseif ($action -eq "install")
+    {
+        $oldDir = Get-Location
+        Set-Location -Path "$THIRD_PARTY_COMPILED\$FTXUI_FOLDER_NAME"
+        cmake --install build --config Release --prefix $PREFIX
+        Write-Host "Installed ftxui into $PREFIX"
         Set-Location $oldDir
     }
     else

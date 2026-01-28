@@ -70,6 +70,32 @@ def create_async_connector(ctx: zmq.asyncio.Context, *args, **kwargs) -> AsyncCo
         )
 
 
+def create_async_multicast_connector(ctx: zmq.asyncio.Context, *args, **kwargs) -> AsyncConnector:
+    """Create a multicast/pub-sub connector based on the network backend.
+
+    For ZMQ backend, this creates a PUB socket.
+    For YMQ backend, this creates a Multicast socket.
+    """
+    connector_type = get_scaler_network_backend_from_env()
+    if connector_type == NetworkBackend.ymq:
+        from scaler.io.ymq import ymq
+        from scaler.io.ymq_async_connector import YMQAsyncConnector
+
+        kwargs["socket_type"] = ymq.IOSocketType.Multicast
+        return YMQAsyncConnector(*args, **kwargs)
+    elif connector_type == NetworkBackend.tcp_zmq:
+        import zmq
+
+        from scaler.io.async_connector import ZMQAsyncConnector
+
+        kwargs["socket_type"] = zmq.PUB
+        return ZMQAsyncConnector(context=ctx, *args, **kwargs)  # type: ignore[misc]
+    else:
+        raise ValueError(
+            f"Invalid SCALER_NETWORK_BACKEND value." f"Expected one of: {[e.name for e in NetworkBackend]}"
+        )
+
+
 def create_async_object_storage_connector(*args, **kwargs) -> AsyncObjectStorageConnector:
     connector_type = get_scaler_network_backend_from_env()
     if connector_type == NetworkBackend.ymq:

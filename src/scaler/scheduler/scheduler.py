@@ -7,9 +7,8 @@ import zmq.asyncio
 from scaler.config.defaults import CLEANUP_INTERVAL_SECONDS, STATUS_REPORT_INTERVAL_SECONDS
 from scaler.config.section.scheduler import SchedulerConfig
 from scaler.config.types.zmq import ZMQConfig, ZMQType
-from scaler.io.async_connector import ZMQAsyncConnector
 from scaler.io.mixins import AsyncBinder, AsyncConnector, AsyncObjectStorageConnector
-from scaler.io.utility import create_async_binder, create_async_object_storage_connector
+from scaler.io.utility import create_async_binder, create_async_multicast_connector, create_async_object_storage_connector
 from scaler.io.ymq.ymq import YMQException
 from scaler.protocol.python.common import ObjectStorageAddress
 from scaler.protocol.python.message import (
@@ -84,10 +83,9 @@ class Scheduler:
         self._connector_storage: AsyncObjectStorageConnector = create_async_object_storage_connector()
         logging.info(f"{self.__class__.__name__}: connect to object storage server {object_storage_address!r}")
 
-        self._binder_monitor: AsyncConnector = ZMQAsyncConnector(
-            context=self._context,
+        self._binder_monitor: AsyncConnector = create_async_multicast_connector(
+            self._context,
             name="scheduler_monitor",
-            socket_type=zmq.PUB,
             address=monitor_address,
             bind_or_connect="bind",
             callback=None,

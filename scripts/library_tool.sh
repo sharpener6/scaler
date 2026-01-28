@@ -2,7 +2,7 @@
 # This script builds and installs the required 3rd party C++ libraries.
 #
 # Usage:
-#    	./scripts/library_tool.sh [boost|capnp|uv] [compile|install] [--prefix=PREFIX]
+#    	./scripts/library_tool.sh [boost|capnp|libuv|ftxui] [download|compile|install] [--prefix=PREFIX]
 
 # Remember:
 #	Update the usage string when you are add/remove dependency
@@ -11,6 +11,7 @@
 BOOST_VERSION="1.88.0"
 CAPNP_VERSION="1.0.1"
 UV_VERSION="1.51.0"
+FTXUI_VERSION="5.0.0"
 
 THIRD_PARTY_DIRECTORY="./thirdparties"
 
@@ -38,7 +39,7 @@ PREFIX=$(readlink -f "${PREFIX}")
 mkdir -p "${PREFIX}/include/"
 
 show_help() {
-    echo "Usage: ./library_tool.sh [boost|capnp|libuv] [download|compile|install] [--prefix=DIR]"
+    echo "Usage: ./library_tool.sh [boost|capnp|libuv|ftxui] [download|compile|install] [--prefix=DIR]"
     exit 1
 }
 
@@ -115,12 +116,51 @@ elif [ "$1" == "libuv" ]; then
 
     elif [ "$2" == "install" ]; then
         cd "${THIRD_PARTY_COMPILED}/${UV_FOLDER_NAME}"
-        cmake --install build
+        cmake --install build --prefix "${PREFIX}"
         echo "Installed libuv into ${PREFIX}"
 
     else
         show_help
     fi
+
+elif [ "$1" == "ftxui" ]; then
+    FTXUI_FOLDER_NAME="ftxui-${FTXUI_VERSION}"
+
+    if [ "$2" == "download" ]; then
+        mkdir -p "${THIRD_PARTY_DOWNLOADED}"
+        curl --retry 100 --retry-max-time 3600 \
+            -L "https://github.com/ArthurSonzogni/FTXUI/archive/refs/tags/v${FTXUI_VERSION}.tar.gz" \
+            -o "${THIRD_PARTY_DOWNLOADED}/${FTXUI_FOLDER_NAME}.tar.gz"
+        echo "Downloaded ftxui into ${THIRD_PARTY_DOWNLOADED}/${FTXUI_FOLDER_NAME}.tar.gz"
+
+    elif [ "$2" == "compile" ]; then
+        mkdir -p "${THIRD_PARTY_COMPILED}"
+        rm -rf "${THIRD_PARTY_COMPILED}/${FTXUI_FOLDER_NAME}"
+        tar -xzf "${THIRD_PARTY_DOWNLOADED}/${FTXUI_FOLDER_NAME}.tar.gz" -C "${THIRD_PARTY_COMPILED}"
+        # GitHub extracts to FTXUI-X.Y.Z (uppercase), rename to lowercase
+        if [ -d "${THIRD_PARTY_COMPILED}/FTXUI-${FTXUI_VERSION}" ]; then
+            mv "${THIRD_PARTY_COMPILED}/FTXUI-${FTXUI_VERSION}" "${THIRD_PARTY_COMPILED}/${FTXUI_FOLDER_NAME}"
+        fi
+
+        cd "${THIRD_PARTY_COMPILED}/${FTXUI_FOLDER_NAME}"
+        cmake -B build \
+            -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DFTXUI_BUILD_EXAMPLES=OFF \
+            -DFTXUI_BUILD_TESTS=OFF \
+            -DFTXUI_BUILD_DOCS=OFF
+        cmake --build build --config Release -j "${NUM_CORES}"
+        echo "Compiled ftxui to ${THIRD_PARTY_COMPILED}/${FTXUI_FOLDER_NAME}"
+
+    elif [ "$2" == "install" ]; then
+        cd "${THIRD_PARTY_COMPILED}/${FTXUI_FOLDER_NAME}"
+        cmake --install build --prefix "${PREFIX}"
+        echo "Installed ftxui into ${PREFIX}"
+
+    else
+        show_help
+    fi
+
 else
     show_help
 fi
