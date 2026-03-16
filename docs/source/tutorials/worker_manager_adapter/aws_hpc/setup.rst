@@ -370,7 +370,7 @@ Step 7: Use in Your Code
         result = future.result()
 
         # Submit multiple tasks
-        results = client.map(my_function, [(arg1,), (arg2,), (arg3,)])
+        results = client.map(my_function, [arg1, arg2, arg3])
 
 Cleanup (Host Only)
 -------------------
@@ -500,4 +500,3 @@ AWS HPC Batch Options (``worker_manager_aws_hpc_batch``)
 +------------------------------------+----------------+-------------------------------------------------------------------+
 | ``--logging-paths``                | /dev/stdout    | Log output paths                                                  |
 +------------------------------------+----------------+-------------------------------------------------------------------+
-
