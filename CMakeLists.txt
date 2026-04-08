@@ -98,7 +98,46 @@ endif()
 # Include Python-related utilities
 include(cmake/ScalerPythonModule.cmake)
 
-find_package(CapnProto CONFIG REQUIRED)
+if(DEFINED ENV{CMAKE_PREFIX_PATH} AND NOT "$ENV{CMAKE_PREFIX_PATH}" STREQUAL "")
+    file(TO_CMAKE_PATH "$ENV{CMAKE_PREFIX_PATH}" SCALER_ENV_CMAKE_PREFIX_PATH)
+    list(PREPEND CMAKE_PREFIX_PATH ${SCALER_ENV_CMAKE_PREFIX_PATH})
+endif()
+
+if(DEFINED ENV{CapnProto_DIR} AND NOT "$ENV{CapnProto_DIR}" STREQUAL "" AND NOT DEFINED CapnProto_DIR)
+    file(TO_CMAKE_PATH "$ENV{CapnProto_DIR}" CapnProto_DIR)
+endif()
+
+if(DEFINED CMAKE_PREFIX_PATH AND NOT "${CMAKE_PREFIX_PATH}" STREQUAL "")
+    set(SCALER_NORMALIZED_CMAKE_PREFIX_PATH)
+    foreach(SCALER_PREFIX_PATH IN LISTS CMAKE_PREFIX_PATH)
+        file(TO_CMAKE_PATH "${SCALER_PREFIX_PATH}" SCALER_NORMALIZED_PREFIX_PATH)
+        list(APPEND SCALER_NORMALIZED_CMAKE_PREFIX_PATH "${SCALER_NORMALIZED_PREFIX_PATH}")
+    endforeach()
+    set(CMAKE_PREFIX_PATH ${SCALER_NORMALIZED_CMAKE_PREFIX_PATH})
+endif()
+
+if(DEFINED CapnProto_DIR AND NOT "${CapnProto_DIR}" STREQUAL "")
+    file(TO_CMAKE_PATH "${CapnProto_DIR}" CapnProto_DIR)
+    set(SCALER_CAPNP_CONFIG_PATH "${CapnProto_DIR}/CapnProtoConfig.cmake")
+endif()
+
+message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+message(STATUS "CapnProto_DIR: ${CapnProto_DIR}")
+
+if(DEFINED SCALER_CAPNP_CONFIG_PATH)
+    message(STATUS "CapnProtoConfig path: ${SCALER_CAPNP_CONFIG_PATH}")
+    if(EXISTS "${SCALER_CAPNP_CONFIG_PATH}")
+        message(STATUS "CapnProtoConfig exists: TRUE")
+    else()
+        message(STATUS "CapnProtoConfig exists: FALSE")
+    endif()
+endif()
+
+if(DEFINED SCALER_CAPNP_CONFIG_PATH AND EXISTS "${SCALER_CAPNP_CONFIG_PATH}")
+    find_package(CapnProto CONFIG REQUIRED PATHS "${CapnProto_DIR}" NO_DEFAULT_PATH)
+else()
+    find_package(CapnProto CONFIG REQUIRED)
+endif()
 get_target_property(CAPNP_INCLUDE_DIRS CapnProto::capnp INTERFACE_INCLUDE_DIRECTORIES)
 message(STATUS "Found Capnp includes in ${CAPNP_INCLUDE_DIRS}")
 

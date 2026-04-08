@@ -1,6 +1,8 @@
 name: Publish Python package to PyPI
 
 on:
+  pull_request:
+    branches: [ "main" ]
   release:
     types: [ created ]
 
@@ -19,6 +21,8 @@ jobs:
           # TODO: re-enable after fixing QEMU exec format error
           # - os: ubuntu-latest
           #   cibw_archs: aarch64
+          - os: windows-latest
+            cibw_archs: AMD64
           - os: macos-latest
             cibw_archs: native
           - os: macos-15-intel
@@ -56,22 +60,22 @@ jobs:
           name: dist-${{ matrix.os }}-${{ matrix.cibw_archs }}
           path: ./dist/
 
-  publish:
-    name: Publish to PyPI
-    needs: build
-    runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      id-token: write
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          path: ./dist/
-          pattern: dist-*
-          merge-multiple: true
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: ./dist/
+#  publish:
+#    name: Publish to PyPI
+#    needs: build
+#    runs-on: ubuntu-latest
+#    environment: release
+#    permissions:
+#      id-token: write
+#    steps:
+#      - name: Download all artifacts
+#        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+#        with:
+#          path: ./dist/
+#          pattern: dist-*
+#          merge-multiple: true
+#
+#      - name: Publish to PyPI
+#        uses: pypa/gh-action-pypi-publish@release/v1
+#        with:
+#          packages-dir: ./dist/
