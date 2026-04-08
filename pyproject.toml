@@ -115,6 +115,8 @@ build.targets = [
 [tool.scikit-build.cmake.define]
 CMAKE_C_COMPILER = { env = "CMAKE_C_COMPILER", default = "gcc" }
 CMAKE_CXX_COMPILER = { env = "CMAKE_CXX_COMPILER", default = "g++" }
+CMAKE_PREFIX_PATH = { env = "CMAKE_PREFIX_PATH", default = "" }
+CapnProto_DIR = { env = "CapnProto_DIR", default = "" }
 
 [tool.mypy]
 no_strict_optional = true
@@ -222,3 +224,9 @@ set -ex && \
 ./scripts/library_tool.sh libuv compile --prefix="$CMAKE_PREFIX_PATH"; \
 ./scripts/library_tool.sh libuv install --prefix="$CMAKE_PREFIX_PATH"; \
 """
+
+[tool.cibuildwheel.windows]
+skip = "cp38-* cp39-*"
+archs = ["AMD64"]
+before-all = "pwsh -File ./scripts/cibuildwheel_before_all_windows.ps1"
+environment = { CMAKE_C_COMPILER = "cl", CMAKE_CXX_COMPILER = "cl", CMAKE_GENERATOR = "Visual Studio 17 2022", CMAKE_GENERATOR_PLATFORM = "x64", CMAKE_CONFIGURATION_TYPES = "Release", CMAKE_PREFIX_PATH = "$TEMP/opengris-thirdparties", CapnProto_DIR = "$CMAKE_PREFIX_PATH/lib/cmake/CapnProto" }
