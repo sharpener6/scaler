@@ -10,14 +10,17 @@ namespace object_storage {
 
 int getAvailableTCPPort()
 {
-    static bool winsockInitialized = [] {
-        WSADATA data {};
-        return WSAStartup(MAKEWORD(2, 2), &data) == 0;
-    }();
-
-    if (!winsockInitialized) {
+    WSADATA data {};
+    if (WSAStartup(MAKEWORD(2, 2), &data) != 0) {
         throw std::runtime_error("WSAStartup() failed");
     }
+
+    struct WSACleanupGuard {
+        ~WSACleanupGuard()
+        {
+            WSACleanup();
+        }
+    } wsaCleanupGuard;
 
     SOCKET socketFileDescriptor = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (socketFileDescriptor == INVALID_SOCKET) {

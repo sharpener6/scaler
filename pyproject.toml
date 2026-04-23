@@ -115,8 +115,6 @@ build.targets = [
 [tool.scikit-build.cmake.define]
 CMAKE_C_COMPILER = { env = "CMAKE_C_COMPILER", default = "gcc" }
 CMAKE_CXX_COMPILER = { env = "CMAKE_CXX_COMPILER", default = "g++" }
-CMAKE_PREFIX_PATH = { env = "CMAKE_PREFIX_PATH", default = "" }
-CapnProto_DIR = { env = "CapnProto_DIR", default = "" }
 
 [tool.mypy]
 no_strict_optional = true
