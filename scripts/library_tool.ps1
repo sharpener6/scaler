@@ -92,7 +92,7 @@ elseif ($dependency -eq "capnp")
         # Configure and build with Visual Studio using CMake
         $oldDir = Get-Location
         Set-Location -Path "$THIRD_PARTY_COMPILED\$CAPNP_FOLDER_NAME"
-        cmake -G "Visual Studio 17 2022" -B build -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib
+        cmake -G "Visual Studio 17 2022" -B build -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_TESTING=OFF
         cmake --build build --config Release
         Write-Host "Compiled capnp into $THIRD_PARTY_COMPILED\$CAPNP_FOLDER_NAME"
         Set-Location $oldDir
