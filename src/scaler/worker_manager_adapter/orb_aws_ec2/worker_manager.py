@@ -2,7 +2,7 @@ import asyncio
 import logging
 import math
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional
 
 try:
     import boto3
@@ -12,12 +12,11 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError('execute "pip install opengris-scaler[orb]" to use ORB AWS EC2 worker Manager') from exc
 
 from scaler.config.section.orb_aws_ec2_worker_adapter import ORBAWSEC2WorkerAdapterConfig
-from scaler.protocol.capnp import WorkerManagerCommandResponse
+from scaler.protocol.capnp import WorkerManagerCommand, WorkerManagerCommandResponse
 from scaler.utility.event_loop import register_event_loop, run_task_forever
-from scaler.utility.identifiers import WorkerID
 from scaler.utility.logging.utility import setup_logger
-from scaler.worker_manager_adapter.common import format_capabilities
-from scaler.worker_manager_adapter.mixins import WorkerProvisioner
+from scaler.worker_manager_adapter.common import extract_desired_count, format_capabilities
+from scaler.worker_manager_adapter.mixins import DeclarativeWorkerProvisioner
 from scaler.worker_manager_adapter.worker_manager_runner import WorkerManagerRunner
 
 Status = WorkerManagerCommandResponse.Status
@@ -26,41 +25,82 @@ ORB_AWS_EC2_POLLING_INTERVAL_SECONDS = 5
 ORB_AWS_EC2_MAX_POLLING_ATTEMPTS = 60
 
 
-def get_orb_aws_ec2_worker_name(instance_id: str) -> str:
-    if instance_id == "${INSTANCE_ID}":
-        return "Worker|ORB|${INSTANCE_ID}|${INSTANCE_ID//i-/}"
-    tag = instance_id.replace("i-", "")
-    return f"Worker|ORB|{instance_id}|{tag}"
-
-
-class ORBWorkerProvisioner(WorkerProvisioner):
-    def __init__(self, config: ORBAWSEC2WorkerAdapterConfig, max_instances: int, sdk: Any, template_id: str) -> None:
+class ORBWorkerProvisioner(DeclarativeWorkerProvisioner):
+    def __init__(
+        self,
+        config: ORBAWSEC2WorkerAdapterConfig,
+        max_instances: int,
+        sdk: Any,
+        template_id: str,
+        workers_per_instance: int,
+    ) -> None:
         self._config = config
         self._max_instances = max_instances
         self._sdk = sdk
         self._template_id = template_id
-        self._workers: Dict[WorkerID, str] = {}
+        self._workers_per_instance = workers_per_instance
+        self._units: List[str] = []  # EC2 instance IDs of active units
+        self._desired_count: int = 0
+        self._reconcile_lock: asyncio.Lock = asyncio.Lock()
 
-    async def start_worker(self) -> Tuple[List[bytes], Status]:
-        if self._max_instances != -1 and len(self._workers) >= self._max_instances:
-            logging.warning(
-                f"Worker start rejected: at capacity ({len(self._workers)}/{self._max_instances} instances)"
+        # keeps a strong reference to the running task
+        self._active_reconcile_task: Optional[asyncio.Task] = None
+        self._pending_reconcile_task: Optional[asyncio.Task] = None
+
+    async def set_desired_task_concurrency(
+        self, requests: List[WorkerManagerCommand.DesiredTaskConcurrencyRequest]
+    ) -> None:
+        own_capabilities = self._config.worker_config.per_worker_capabilities.capabilities
+        task_concurrency = extract_desired_count(requests, own_capabilities)
+        new_desired = math.ceil(task_concurrency / self._workers_per_instance)
+        if new_desired != self._desired_count:
+            logging.info(
+                f"Desired instance count changed: {self._desired_count} → {new_desired} "
+                f"(task_concurrency={task_concurrency}, workers_per_instance={self._workers_per_instance})"
             )
-            return [], Status.tooManyWorkers
+        self._desired_count = new_desired
 
-        logging.info(f"Submitting ORB machine request for template {self._template_id}...")
-        try:
-            create_response = await self._sdk.create_request(template_id=self._template_id, count=1)
-        except Exception:
-            logging.exception("ORB create_request failed")
-            return [], Status.unknownAction
+        # reconciling the ec2 instances can take some time
+        # so we launch a task to handle it in the background
+        # `_reconcile_lock` ensures only one runs at a time
+        if self._pending_reconcile_task is None:
+            self._pending_reconcile_task = asyncio.create_task(self._reconcile())
+
+    async def _reconcile(self) -> None:
+        async with self._reconcile_lock:
+            self._active_reconcile_task = asyncio.current_task()
+            self._pending_reconcile_task = None
+            try:
+                current = len(self._units)
+                delta = self._desired_count - current
+                if self._max_instances != -1:
+                    delta = min(delta, self._max_instances - current)
+                capped = self._max_instances != -1 and delta != self._desired_count - current
+                msg = f"Reconcile: desired={self._desired_count}, current={current}, delta={delta:+d}" + (
+                    f" (capped by max_instances={self._max_instances})" if capped else ""
+                )
+                if delta != 0:
+                    logging.info(msg)
+                else:
+                    logging.debug(msg)
+                if delta > 0:
+                    await self.start_units(delta)
+                elif delta < 0:
+                    await self.stop_units(abs(delta))
+            except Exception as exc:
+                logging.exception(f"Reconcile failed: {exc}")
+            finally:
+                self._active_reconcile_task = None
+
+    async def start_units(self, count: int) -> None:
+        logging.info(f"Submitting ORB batch machine request for template {self._template_id} (count={count})...")
+        create_response = await self._sdk.create_request(template_id=self._template_id, count=count)
 
         request_id = create_response.get("created_request_id") if isinstance(create_response, dict) else None
         if not request_id:
-            logging.error(f"ORB create_request returned no request ID. Response: {create_response}")
-            return [], Status.unknownAction
+            raise RuntimeError(f"ORB create_request returned no request ID. Response: {create_response}")
 
-        logging.info(f"ORB request {request_id} submitted, polling for instance ID...")
+        logging.info(f"ORB request {request_id} submitted, polling for {count} instance ID(s)...")
         timeout_seconds = ORB_AWS_EC2_MAX_POLLING_ATTEMPTS * ORB_AWS_EC2_POLLING_INTERVAL_SECONDS
         elapsed = 0
 
@@ -68,11 +108,7 @@ class ORBWorkerProvisioner(WorkerProvisioner):
             await asyncio.sleep(ORB_AWS_EC2_POLLING_INTERVAL_SECONDS)
             elapsed += ORB_AWS_EC2_POLLING_INTERVAL_SECONDS
 
-            try:
-                status_response = await self._sdk.get_request_status(request_ids=[request_id])
-            except Exception:
-                logging.exception(f"ORB get_request_status failed for request {request_id}")
-                return [], Status.unknownAction
+            status_response = await self._sdk.get_request_status(request_ids=[request_id])
 
             requests = status_response.get("requests", []) if isinstance(status_response, dict) else []
             if not requests:
@@ -81,62 +117,44 @@ class ORBWorkerProvisioner(WorkerProvisioner):
             req = requests[0] if isinstance(requests[0], dict) else {}
             status = req.get("status", "")
             machine_ids = req.get("machine_ids", [])
-            instance_id = machine_ids[0] if machine_ids else None
 
-            if instance_id:
-                worker_name = get_orb_aws_ec2_worker_name(instance_id)
-                worker_id = WorkerID(worker_name.encode())
-                self._workers[worker_id] = instance_id
-                logging.info(
-                    f"ORB request {request_id} fulfilled: launched worker '{worker_name}' (instance {instance_id})"
-                )
-                return [bytes(worker_id)], Status.success
+            if len(machine_ids) >= count:
+                for instance_id in machine_ids:
+                    logging.info(f"ORB request {request_id}: instance {instance_id} ready")
+                self._units.extend(machine_ids)
+                return
 
             if status.lower() in {"failed", "error", "cancelled", "canceled"}:
-                logging.error(f"ORB request {request_id} reached terminal status '{status}' with no instance ID.")
-                return [], Status.unknownAction
+                raise RuntimeError(
+                    f"ORB request {request_id} reached terminal status '{status}' "
+                    f"with {len(machine_ids)}/{count} instances fulfilled."
+                )
 
-        logging.error(f"ORB request {request_id} timed out after {timeout_seconds:.0f}s waiting for instance ID.")
-        return [], Status.unknownAction
+        raise TimeoutError(
+            f"ORB request {request_id} timed out after {timeout_seconds:.0f}s " f"with 0/{count} instances fulfilled."
+        )
 
-    async def shutdown_workers(self, worker_ids: List[bytes]) -> Tuple[List[bytes], Status]:
-        if not worker_ids:
-            return [], Status.workerNotFound
-
-        instance_ids = []
-        affected_worker_ids = []
-        for wid_bytes in worker_ids:
-            worker_id = WorkerID(wid_bytes)
-            if worker_id not in self._workers:
-                logging.warning(f"Worker with ID {wid_bytes!r} does not exist.")
-                return [], Status.workerNotFound
-            instance_ids.append(self._workers[worker_id])
-            affected_worker_ids.append(wid_bytes)
-
-        logging.info(f"Stopping {len(instance_ids)} worker(s): instances {instance_ids}")
-        try:
-            await self._sdk.create_return_request(machine_ids=instance_ids)
-        except Exception as e:
-            logging.error(f"Failed to return instances {instance_ids} to ORB: {e}")
-            return [], Status.unknownAction
-
-        for wid_bytes in affected_worker_ids:
-            del self._workers[WorkerID(wid_bytes)]
-
-        logging.info(f"Successfully stopped {len(affected_worker_ids)} worker(s): instances {instance_ids}")
-        return affected_worker_ids, Status.success
+    async def stop_units(self, count: int) -> None:
+        unit_ids = self._units[:count]
+        if len(unit_ids) < count:
+            logging.warning(f"Requested to stop {count} unit(s) but only {len(unit_ids)} available.")
+        if not unit_ids:
+            return
+        logging.info(f"Stopping {len(unit_ids)} unit(s): instances {unit_ids}")
+        await self._sdk.create_return_request(machine_ids=unit_ids)
+        del self._units[:count]
+        logging.info(f"Successfully stopped {count} unit(s): instances {unit_ids}")
 
     async def terminate_all_workers(self) -> None:
-        if not self._workers:
+        if not self._units:
             return
-        instance_ids = list(self._workers.values())
-        logging.info(f"Terminating {len(instance_ids)} worker group(s)...")
+        logging.info(f"Terminating {len(self._units)} unit(s)...")
         try:
-            await self._sdk.create_return_request(machine_ids=instance_ids)
-            logging.info(f"Successfully requested termination of instances: {instance_ids}")
+            await self._sdk.create_return_request(machine_ids=self._units)
+            logging.info(f"Successfully requested termination of instances: {self._units}")
         except Exception as e:
             logging.warning(f"Failed to terminate instances during cleanup: {e}")
-        self._workers.clear()
+        self._units.clear()
 
 
 class ORBAWSEC2WorkerAdapter:
@@ -217,7 +235,11 @@ class ORBAWSEC2WorkerAdapter:
         image_id = self._config.image_id or self._discover_latest_al2023_ami()
 
         self._orb_pool = ORBWorkerProvisioner(
-            config=self._config, max_instances=max_instances, sdk=sdk, template_id=template_id
+            config=self._config,
+            max_instances=max_instances,
+            sdk=sdk,
+            template_id=template_id,
+            workers_per_instance=workers_per_instance,
         )
         self._runner = WorkerManagerRunner(
             address=self._config.worker_manager_config.scheduler_address,
